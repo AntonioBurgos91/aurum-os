@@ -1,0 +1,31 @@
+# /opt/aurum-langfuse/.env — TEMPLATE
+#
+# The install script (distro/post-install/10-install-observability.sh) does
+# NOT copy this file verbatim. It generates the live .env with fresh secrets
+# from `openssl rand -hex 32` and writes it with chmod 600. This template is
+# checked into the repo as documentation of every key Langfuse consumes.
+#
+# If you need to regenerate secrets on a running install:
+#   sudo bash -c '
+#     cd /opt/aurum-langfuse
+#     sed -i "s|^NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=$(openssl rand -hex 32)|" .env
+#     sed -i "s|^SALT=.*|SALT=$(openssl rand -hex 32)|" .env
+#     docker compose down && docker compose up -d
+#   '
+# Existing sessions will be invalidated; trace data in the database is preserved
+# (SALT only encrypts API keys at rest, not trace payloads).
+
+# --- Required secrets (32 random bytes hex each) ---
+NEXTAUTH_SECRET=changeme-replace-with-openssl-rand-hex-32
+SALT=changeme-replace-with-openssl-rand-hex-32
+
+# --- Public URL the Next.js server thinks it's serving ---
+# Must match what users hit in the browser, including port. If you reverse-
+# proxy Langfuse behind nginx/caddy on :443, set this to https://your.host.
+NEXTAUTH_URL=http://localhost:3030
+
+# --- Seed admin (created on first startup if no users exist) ---
+# CHANGE THE PASSWORD before any non-loopback access.
+LANGFUSE_INIT_ORG_ID=aurum
+LANGFUSE_INIT_USER_EMAIL=admin@aurum.local
+LANGFUSE_INIT_USER_PASSWORD=aurum-default-changeme

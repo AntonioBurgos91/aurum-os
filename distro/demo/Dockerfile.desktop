@@ -1,0 +1,143 @@
+# AurumOS desktop preview container.
+# Layers on top of aurumos:dev:
+#   - Installs Hyprland via PPA (with fallback to distro package)
+#   - Adds wayvnc (Wayland-native VNC server)
+#   - Adds noVNC + websockify (HTML5 client)
+#   - Builds the Qt6 desktop binaries
+#   - Builds the 3 Rust daemons
+#
+# Two run modes:
+#   A) Real GPU (recommended) — pass --device /dev/dri (AMD/Intel) or
+#      --runtime=nvidia --gpus all (NVIDIA). Hyprland uses the DRM backend.
+#   B) Software rendering (works without GPU but slow) — set
+#      GPU_BACKEND=headless. Hyprland uses the headless backend.
+# See docker-compose.yml and README.md in this directory.
+
+FROM aurumos:dev
+
+USER root
+
+# --- Hyprland build deps + runtime + wayvnc + noVNC -----------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        # wlroots/Hyprland runtime
+        seatd libseat1 \
+        # Captura Wayland sin EGL: wf-recorder (dmabuf) → ffmpeg → MJPEG
+        wf-recorder ffmpeg \
+        # X virtual como fallback + x11vnc
+        xvfb x11vnc xwayland \
+        # Qt6 Wayland platform plugin (necesario para apps Qt6 en Wayland)
+        qt6-wayland \
+        # noVNC HTML5 client
+        novnc websockify wayvnc \
+        # Software OpenGL
+        mesa-utils mesa-vulkan-drivers libgl1-mesa-dri \
+        # Wallpaper backdrop: las Window QML tienen color:"transparent"; sin un
+        # backdrop opaco debajo wlr-screencopy compone alpha=0 → frame negro.
+        swaybg \
+        # Misc
+        sudo procps psmisc curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Hyprland from PPA (preview-only shortcut) ----------------------------
+# Hyprland 0.46+ pulls in the hyprwm dep cascade. For a developer preview the
+# cppiber PPA packages a working Hyprland for noble. If the PPA is unavailable
+# we fall back gracefully to whatever version ships in the Ubuntu repos.
+# PRODUCTION ISO still builds from source via distro/iso-builder/build-hyprland.sh.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        software-properties-common gnupg \
+    && ( \
+        add-apt-repository -y ppa:cppiber/hyprland \
+        && apt-get update \
+        && apt-get install -y --no-install-recommends hyprland \
+    ) || ( \
+        echo "[Dockerfile.desktop] PPA unavailable — installing hyprland from universe" \
+        && apt-get update \
+        && apt-get install -y --no-install-recommends hyprland || true \
+    ) \
+    && rm -rf /var/lib/apt/lists/* \
+    && (command -v Hyprland && echo "Hyprland installed at $(command -v Hyprland)") \
+       || echo "WARNING: Hyprland not found — headless mode only"
+
+# --- Build the AurumOS C++ desktop + Rust daemons -------------------------
+# Done as root so /opt artifacts land predictably.
+WORKDIR /opt/aurum-src
+COPY . /opt/aurum-src
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_DESKTOP=ON -DBUILD_LIBS=ON -DBUILD_TESTS=OFF \
+    && cmake --build build -j"$(nproc)" \
+    && cmake --install build
+
+# Make the Aurum.Aqua QML module discoverable by Qt6's default QmlImportsPath.
+# CMAKE_INSTALL_LIBDIR on noble multiarch lands at lib/x86_64-linux-gnu, but
+# Qt6 looks under the system path. Symlink whichever location the install
+# produced into Qt6's well-known dir.
+RUN QT_QML=/usr/lib/x86_64-linux-gnu/qt6/qml \
+    && for src in /usr/local/lib/x86_64-linux-gnu/qt6/qml/Aurum \
+                  /usr/local/lib/qt6/qml/Aurum; do \
+        if [ -d "$src" ]; then \
+            ln -sfn "$src" "$QT_QML/Aurum" \
+                && echo "linked $src → $QT_QML/Aurum"; \
+            break; \
+        fi; \
+    done; \
+    ls -la "$QT_QML/Aurum/Aqua/qmldir" 2>&1 || echo "WARN: Aurum.Aqua not found"
+
+ENV CARGO_TARGET_DIR=/tmp/cargo-target
+RUN for d in gpu-monitor spotlight-indexer ml-jobs-tracker; do \
+        cargo build --release --manifest-path /opt/aurum-src/daemons/$d/Cargo.toml; \
+        install -m 0755 /tmp/cargo-target/release/aurum-$d /usr/local/bin/; \
+    done \
+    && rm -rf /tmp/cargo-target
+
+# Staged QML files where the binaries look (see resolve_qml_path in main.cpp).
+RUN install -d /usr/share/aurum-os/qml \
+    && cp /opt/aurum-src/desktop/*/*.qml      /usr/share/aurum-os/qml/ 2>/dev/null || true \
+    && install -d /usr/share/aurum-os/qml/sections \
+    && cp /opt/aurum-src/desktop/settings/sections/*.qml /usr/share/aurum-os/qml/sections/ 2>/dev/null || true \
+    && install -d /usr/share/aurum-os/qml/pages \
+    && cp /opt/aurum-src/desktop/installer/pages/*.qml /usr/share/aurum-os/qml/pages/ 2>/dev/null || true
+
+# Install Python helper for parquet preview
+RUN install -d /usr/share/aurum-os/scripts \
+    && install -m 0755 /opt/aurum-src/scripts/parquet_peek.py /usr/share/aurum-os/scripts/parquet_peek.py
+
+# --- Aurum Hyprland config for the preview --------------------------------
+RUN install -d /etc/aurum/hypr \
+    && cp /opt/aurum-src/distro/hyprland-fork/aurum.conf /etc/aurum/hypr/aurum.conf
+COPY distro/demo/preview.conf /etc/aurum/hypr/preview.conf
+
+# --- Launcher -------------------------------------------------------------
+COPY distro/demo/launch-headless.sh /usr/local/bin/aurum-desktop-launch
+RUN chmod +x /usr/local/bin/aurum-desktop-launch
+
+# Pre-create paths the launcher + daemons write to.
+# The base Dockerfile creates the 'developer' user; confirm and set ownership.
+RUN id developer 2>/dev/null || (useradd -m -s /bin/bash developer && \
+        echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers) \
+    && groupadd -f render \
+    && usermod -aG video,render developer \
+    && mkdir -p /var/log/aurum /tmp/runtime /run \
+    && chmod 0700 /tmp/runtime \
+    && chmod 1777 /run \
+    && chown developer:developer /var/log/aurum /tmp/runtime
+
+EXPOSE 6080 5900
+
+ENV XDG_RUNTIME_DIR=/tmp/runtime \
+    WAYLAND_DISPLAY=wayland-1 \
+    QT_QPA_PLATFORM=wayland \
+    QT_WAYLAND_DISABLE_WINDOWDECORATION=1 \
+    DBUS_SESSION_BUS_ADDRESS="" \
+    LIBSEAT_BACKEND=noop \
+    WLR_NO_HARDWARE_CURSORS=1 \
+    WLR_LIBINPUT_NO_DEVICES=1 \
+    AQ_NO_MODIFIERS=1 \
+    GPU_BACKEND=drm
+# Note: WLR_RENDERER + MESA_LOADER_DRIVER_OVERRIDE intentionally absent here —
+# they would force software rendering even when an NVIDIA EGL context is
+# available. The launcher sets them ONLY for GPU_BACKEND=headless.
+
+# Run as the non-root developer user — Hyprland aborts if started as root.
+USER developer
+
+CMD ["aurum-desktop-launch"]

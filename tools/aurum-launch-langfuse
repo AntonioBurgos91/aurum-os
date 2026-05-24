@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-langfuse — bring up the local Langfuse stack and open the UI
+#
+# Idempotent: re-running while the stack is already up just re-opens Falkon.
+# `docker compose up -d` is a no-op when containers are already healthy.
+#
+# Window class: aurum-langfuse (set via --wmclass on Falkon) — picked up by
+# distro/hyprland-fork/conf.d/observability.conf to float + size the window.
+# ==============================================================================
+set -euo pipefail
+
+LANGFUSE_DIR="${LANGFUSE_DIR:-/opt/aurum-langfuse}"
+LANGFUSE_URL="${LANGFUSE_URL:-http://localhost:3030}"
+
+log()  { echo -e "\e[34m[langfuse]\e[0m $*"; }
+warn() { echo -e "\e[33m[langfuse]\e[0m $*" >&2; }
+die()  { echo -e "\e[31m[langfuse]\e[0m $*" >&2; exit 1; }
+
+if [[ ! -f "${LANGFUSE_DIR}/docker-compose.yml" ]]; then
+    die "Langfuse stack not installed (no ${LANGFUSE_DIR}/docker-compose.yml).
+Likely cause: this machine is on the 'lite' profile. Either:
+  - upgrade your profile in /etc/aurum/profile.conf, then re-run
+    sudo bash /usr/share/aurum-os/post-install/10-install-observability.sh
+  - or use cloud.langfuse.com (free) — see docs/guides/observability.md"
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+    die "docker not on PATH — install Docker first (Wave 7)."
+fi
+
+log "starting Langfuse stack (cd ${LANGFUSE_DIR} && docker compose up -d)..."
+( cd "${LANGFUSE_DIR}" && docker compose up -d )
+
+# Wait up to ~30s for the Next.js server to start serving HTTP. We poll the
+# /api/public/health endpoint which Langfuse exposes for liveness checks.
+log "waiting for ${LANGFUSE_URL}/api/public/health ..."
+for _ in $(seq 1 30); do
+    if curl -fsS -o /dev/null --max-time 2 "${LANGFUSE_URL}/api/public/health" 2>/dev/null; then
+        log "Langfuse is up"
+        break
+    fi
+    sleep 1
+done
+
+# Open Falkon pointed at the Langfuse UI. The --wmclass flag stamps the window
+# class so Hyprland's windowrule (observability.conf) can float + size it
+# distinctly from a normal browser window.
+if command -v falkon >/dev/null 2>&1; then
+    log "opening Falkon → ${LANGFUSE_URL}"
+    # `--wmclass` is a generic Qt arg; works for any Qt5/Qt6 app.
+    exec falkon --wmclass aurum-langfuse --no-extensions "${LANGFUSE_URL}" >/dev/null 2>&1 &
+elif command -v xdg-open >/dev/null 2>&1; then
+    warn "falkon not installed — falling back to xdg-open (no wmclass tagging)"
+    exec xdg-open "${LANGFUSE_URL}" >/dev/null 2>&1 &
+else
+    log "no browser available — visit ${LANGFUSE_URL} manually"
+fi

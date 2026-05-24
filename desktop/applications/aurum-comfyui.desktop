@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ComfyUI
+GenericName=Node-based Image Generation
+Comment=Stable Diffusion / SDXL / Flux pipelines via the ComfyUI node editor
+TryExec=aurum-launch-comfyui
+Exec=aurum-launch-comfyui
+Icon=applications-graphics
+Categories=Graphics;AI;Science;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-comfyui
+Keywords=comfyui;stable diffusion;sdxl;sd;diffusion;image;generation;ai;controlnet;

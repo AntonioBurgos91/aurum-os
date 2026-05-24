@@ -1,0 +1,21 @@
+# AurumOS - Deep Learning APT Packages
+# Note: Python packages are in pip-requirements.txt (installed via uv)
+# Note: CUDA/cuDNN/TensorRT require NVIDIA developer repo (added by build.sh)
+
+# --- GPU Runtimes (NVIDIA repo) ---
+cuda-toolkit-12-6
+libcudnn9-cuda-12
+libcudnn9-dev-cuda-12
+libnccl2
+libnccl-dev
+tensorrt
+tensorrt-dev
+
+# --- GPU Monitoring ---
+nvtop
+gpustat
+
+# --- Container Runtime (rootless DL) ---
+podman
+podman-docker
+nvidia-container-toolkit

@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-mcp-template - scaffold a new MCP server from a bundled template
+#
+# Usage:
+#   aurum-mcp-template create <dest>            # Python template (default)
+#   aurum-mcp-template create <dest> --ts       # TypeScript template
+#   aurum-mcp-template list                     # list available templates
+#
+# Behaviour:
+#   - <dest> must NOT exist (we refuse to overwrite).
+#   - The Python template is also renamed: the package directory becomes
+#     `<basename(dest) with hyphens->underscores>`, and pyproject.toml is
+#     rewritten to match.
+#   - On success, prints the next steps (install + claude mcp add).
+# ==============================================================================
+
+set -euo pipefail
+
+# Resolve the templates dir. In production we install to /usr/share/aurum/mcp-
+# templates; for dev we fall back to the repo layout (../recipes/mcp/templates
+# relative to this script).
+resolve_templates_root() {
+    local candidates=(
+        "${AURUM_MCP_TEMPLATES_DIR:-}"
+        "/usr/share/aurum/mcp-templates"
+        "/usr/local/share/aurum/mcp-templates"
+        "$(dirname "$(readlink -f "$0")")/../recipes/mcp/templates"
+    )
+    for c in "${candidates[@]}"; do
+        [[ -n "$c" && -d "$c/python-server" ]] && { echo "$c"; return 0; }
+    done
+    echo "error: could not locate aurum MCP template directory" >&2
+    return 1
+}
+
+die()  { echo "aurum-mcp-template: $*" >&2; exit 1; }
+note() { echo "aurum-mcp-template: $*"; }
+
+cmd_list() {
+    local root; root=$(resolve_templates_root) || exit 1
+    echo "Templates in ${root}:"
+    for d in "${root}"/*/; do
+        [[ -d "$d" ]] && echo "  - $(basename "$d")"
+    done
+}
+
+# Slug a path basename into a python-safe module name:
+#   ./my-server   -> my_server
+#   foo.bar-baz   -> foo_bar_baz
+pkg_from_dest() {
+    local base; base=$(basename "$1")
+    # tr unsupported chars, drop a leading digit, collapse repeats
+    base=$(echo "$base" | tr '[:upper:]-.' '[:lower:]__')
+    base=${base//[^a-z0-9_]/_}
+    [[ "$base" =~ ^[0-9] ]] && base="m_${base}"
+    while [[ "$base" == *__* ]]; do base=${base//__/_}; done
+    echo "${base%_}"
+}
+
+cmd_create() {
+    [[ $# -ge 1 ]] || die "usage: aurum-mcp-template create <dest> [--ts]"
+
+    local dest=$1; shift || true
+    local template="python-server"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --ts|--typescript) template="typescript-server" ;;
+            --py|--python)     template="python-server" ;;
+            *)                 die "unknown flag: $1" ;;
+        esac
+        shift
+    done
+
+    local root; root=$(resolve_templates_root) || exit 1
+    local src="${root}/${template}"
+    [[ -d "$src" ]] || die "template not found: ${template}"
+    [[ -e "$dest" ]] && die "destination already exists: ${dest}"
+
+    note "creating ${dest} from ${template}"
+    mkdir -p "$(dirname "$dest")"
+    cp -r "$src" "$dest"
+
+    if [[ "$template" == "python-server" ]]; then
+        local newpkg; newpkg=$(pkg_from_dest "$dest")
+        if [[ "$newpkg" != "aurum_weather" && -d "${dest}/aurum_weather" ]]; then
+            note "renaming python package: aurum_weather -> ${newpkg}"
+            mv "${dest}/aurum_weather" "${dest}/${newpkg}"
+            # Rewrite pyproject + python imports (BSD/GNU sed compatible).
+            local pyproj="${dest}/pyproject.toml"
+            if [[ -f "$pyproj" ]]; then
+                sed -i.bak \
+                    -e "s/aurum_weather/${newpkg}/g" \
+                    -e "s/aurum-weather/${newpkg//_/-}/g" \
+                    "$pyproj" && rm -f "${pyproj}.bak"
+            fi
+        fi
+        cat <<NEXT
+
+Next steps:
+  cd ${dest}
+  pip install -e .
+  python -m ${newpkg:-aurum_weather}
+
+Register with Claude Code:
+  claude mcp add ${newpkg//_/-} --command python --args -m ${newpkg:-aurum_weather}
+NEXT
+    else
+        cat <<NEXT
+
+Next steps:
+  cd ${dest}
+  npm install
+  npm run build
+  node dist/index.js
+
+Register with Claude Code:
+  claude mcp add $(basename "$dest") --command node --args dist/index.js
+NEXT
+    fi
+}
+
+main() {
+    [[ $# -ge 1 ]] || {
+        cat >&2 <<EOF
+aurum-mcp-template - scaffold a new MCP server
+
+Usage:
+  aurum-mcp-template create <dest> [--ts]
+  aurum-mcp-template list
+
+Env:
+  AURUM_MCP_TEMPLATES_DIR   override template search path
+EOF
+        exit 64
+    }
+    local sub=$1; shift
+    case "$sub" in
+        create) cmd_create "$@" ;;
+        list)   cmd_list ;;
+        -h|--help|help) main ;;
+        *) die "unknown subcommand: ${sub}" ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # --- lint -------------------------------------------------------------
+  lint-shell:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint scripts
+        run: |
+          find . -name "*.sh" -not -path "./build/*" -not -path "./target/*" | \
+            xargs shellcheck -S warning
+
+  lint-cpp:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check formatting
+        run: |
+          find desktop libs -name "*.cpp" -o -name "*.h" | \
+            xargs clang-format --dry-run --Werror
+
+  lint-rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt,clippy
+      - name: Format check
+        run: |
+          for d in daemons/gpu-monitor daemons/spotlight-indexer daemons/ml-jobs-tracker tools/aurum-mockup; do
+            cargo fmt --manifest-path $d/Cargo.toml -- --check
+          done
+      - name: Clippy
+        run: |
+          for d in daemons/gpu-monitor daemons/spotlight-indexer daemons/ml-jobs-tracker; do
+            cargo clippy --manifest-path $d/Cargo.toml --release -- -D warnings
+          done
+
+  # --- build + test -----------------------------------------------------
+  build-rust:
+    runs-on: ubuntu-24.04
+    needs: lint-rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            daemons/gpu-monitor
+            daemons/spotlight-indexer
+            daemons/ml-jobs-tracker
+            tools/aurum-mockup
+      - name: Build
+        run: |
+          for d in daemons/gpu-monitor daemons/spotlight-indexer daemons/ml-jobs-tracker tools/aurum-mockup; do
+            echo "=== build $d ==="
+            cargo build --manifest-path $d/Cargo.toml --release
+          done
+      - name: Test
+        run: |
+          for d in daemons/gpu-monitor daemons/spotlight-indexer daemons/ml-jobs-tracker; do
+            cargo test --manifest-path $d/Cargo.toml --release
+          done
+
+  build-cpp:
+    runs-on: ubuntu-24.04
+    needs: [lint-cpp, lint-shell]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build pkg-config \
+            qt6-base-dev qt6-declarative-dev qt6-tools-dev qt6-wayland \
+            libwayland-dev libxkbcommon-dev \
+            python3 python3-pip
+      - name: Configure
+        run: cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DBUILD_DESKTOP=ON -DBUILD_LIBS=ON -DBUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build
+      - name: Test (C++ + Qt unit tests)
+        run: cd build && ctest --output-on-failure
+
+  # --- smoke (integration, slowest) -------------------------------------
+  smoke:
+    runs-on: ubuntu-24.04
+    needs: [build-rust, build-cpp]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build demo container
+        run: docker build -f distro/demo/Dockerfile.desktop -t aurumos:desktop .
+      - name: Start container
+        run: |
+          docker run -d --name aurum-desktop \
+            -p 6080:6080 -p 5900:5900 \
+            -e GPU_BACKEND=headless \
+            aurumos:desktop
+          sleep 30   # wait for compositor + apps
+      - name: Run smoke
+        run: ./tools/smoke-test.sh --json | tee smoke-output.json
+      - name: Upload smoke artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-output
+          path: smoke-output.json

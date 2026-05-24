@@ -1,0 +1,15 @@
+# AurumOS — AI-augmented coding tools (Wave 8 / Agent D)
+#
+# Consumed by: distro/post-install/09-install-ai-coding.sh
+#
+# Installed via `pip install --break-system-packages -r <this file>` into the
+# system Python (NOT the DL venv at /opt/aurum-dl-venv): the user invokes
+# `aider` from any shell against their own project venv, so the CLI itself
+# needs to be on the global PATH, decoupled from the DL stack lifecycle.
+#
+# Pinning policy: minimum-floor pins (>=) — aider releases weekly and the
+# upstream LLM-provider SDK floors move with it; pinning hard here would
+# block the user from `pip install -U aider-chat` for a week at a time.
+
+# --- Conversational pair-programmer (Ollama / Claude / GPT backends) --------
+aider-chat>=0.60

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Aurum Fine-tune
+GenericName=LLM Fine-tuning Launcher
+Comment=Profile-aware QLoRA recipe runner (Unsloth, Axolotl, DeepSpeed)
+TryExec=aurum-finetune
+Exec=xterm -class aurum-finetune -title "Aurum Fine-tune" -e bash -lc "aurum-finetune --list; echo; echo 'Run \"aurum-finetune --help\" for options.'; exec bash"
+Icon=applications-science
+Categories=Development;Science;MachineLearning;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-finetune
+Keywords=llm;fine-tune;qlora;unsloth;axolotl;peft;lora;

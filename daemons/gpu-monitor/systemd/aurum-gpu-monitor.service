@@ -1,0 +1,19 @@
+[Unit]
+Description=AurumOS GPU telemetry daemon (NVML → D-Bus)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.aurumos.GpuMonitorService
+ExecStart=/usr/local/bin/aurum-gpu-monitor
+Restart=on-failure
+RestartSec=2
+# Read-only, no persistent state. Keep blast radius small.
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=graphical-session.target

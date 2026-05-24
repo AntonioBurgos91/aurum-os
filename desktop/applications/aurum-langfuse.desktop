@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Langfuse
+GenericName=LLM Observability
+Comment=Self-hosted LLM trace + prompt-cost dashboard (browser, port 3030)
+TryExec=aurum-launch-langfuse
+Exec=aurum-launch-langfuse
+Icon=aurum-mlflow
+Categories=Development;AI;Monitor;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-langfuse
+Keywords=langfuse;llm;trace;observability;prompt;tokens;

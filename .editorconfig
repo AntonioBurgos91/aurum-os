@@ -1,0 +1,30 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+
+[*.{c,cpp,h,hpp}]
+indent_style = space
+indent_size = 4
+
+[*.{rs}]
+indent_style = space
+indent_size = 4
+
+[*.{qml,js,ts,json}]
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,toml}]
+indent_style = space
+indent_size = 2
+
+[*.{sh,bash}]
+indent_style = space
+indent_size = 4
+
+[Makefile,*.mk]
+indent_style = tab

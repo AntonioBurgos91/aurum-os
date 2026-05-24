@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-eval — unified CLI for the three eval frameworks AurumOS ships.
+#
+# Usage:
+#   aurum-eval ragas <dataset.json|dataset.parquet>
+#       Run Ragas faithfulness/answer_relevancy/context_* on a HF-Datasets-
+#       compatible file. The file must contain rows with columns:
+#           question, answer, contexts (list[str]), ground_truth
+#
+#   aurum-eval deepeval <test-dir>
+#       Run a DeepEval test suite. <test-dir> is a directory of pytest files
+#       that import from `deepeval` (e.g. recipes/eval/02_deepeval_test_suite.py).
+#
+#   aurum-eval trulens <app-script.py>
+#       Execute a TruLens-instrumented Python script. The script is expected
+#       to wire up a TruApp + feedback functions, then run a small workload.
+#       Results stream into the TruLens SQLite DB at ~/.trulens/.
+#
+#   aurum-eval --help
+#       This message.
+#
+# Routing principle: each subcommand is a thin shell over the underlying
+# tool's preferred invocation. We don't try to abstract over the differences
+# (the frameworks are intentionally different); we just give users one entry
+# point with consistent argv conventions.
+# ==============================================================================
+set -euo pipefail
+
+usage() {
+    sed -n '3,28p' "$0"
+}
+
+if [[ $# -lt 1 ]]; then
+    usage
+    exit 2
+fi
+
+# Pick the python that has the eval libs installed.
+if [[ -x /opt/aurum-dl-venv/bin/python ]]; then
+    PY=/opt/aurum-dl-venv/bin/python
+else
+    PY="$(command -v python3 || true)"
+fi
+[[ -n "${PY}" ]] || { echo "aurum-eval: no python3 found" >&2; exit 1; }
+
+cmd="$1"; shift
+
+case "${cmd}" in
+    --help|-h|help)
+        usage; exit 0 ;;
+
+    ragas)
+        if [[ $# -lt 1 ]]; then
+            echo "aurum-eval ragas: missing <dataset> argument" >&2
+            exit 2
+        fi
+        dataset="$1"; shift
+        [[ -f "${dataset}" ]] || { echo "aurum-eval ragas: dataset not found: ${dataset}" >&2; exit 1; }
+        # Ragas exposes `ragas.evaluate(dataset, metrics=[...])`. We load the
+        # dataset with HF Datasets (handles json + parquet + csv uniformly),
+        # apply the default suite, and print the result table.
+        exec "${PY}" - "${dataset}" "$@" <<'PY'
+import sys
+from datasets import load_dataset
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+
+path = sys.argv[1]
+ext = path.rsplit(".", 1)[-1].lower()
+fmt = {"json": "json", "jsonl": "json", "parquet": "parquet", "csv": "csv"}.get(ext, "json")
+ds = load_dataset(fmt, data_files=path, split="train")
+print(f"loaded {len(ds)} rows from {path} (format={fmt})")
+result = evaluate(ds, metrics=[faithfulness, answer_relevancy, context_precision, context_recall])
+print(result)
+PY
+        ;;
+
+    deepeval)
+        if [[ $# -lt 1 ]]; then
+            echo "aurum-eval deepeval: missing <test-dir> argument" >&2
+            exit 2
+        fi
+        target="$1"; shift
+        [[ -e "${target}" ]] || { echo "aurum-eval deepeval: not found: ${target}" >&2; exit 1; }
+        # DeepEval ships its own pytest plugin and CLI shim; the canonical
+        # invocation is `deepeval test run <path>`. Fall back to plain pytest
+        # if the CLI isn't on PATH (older versions, or system-pip installs).
+        if command -v deepeval >/dev/null 2>&1; then
+            exec deepeval test run "${target}" "$@"
+        else
+            exec "${PY}" -m pytest "${target}" "$@"
+        fi
+        ;;
+
+    trulens)
+        if [[ $# -lt 1 ]]; then
+            echo "aurum-eval trulens: missing <script.py> argument" >&2
+            exit 2
+        fi
+        script="$1"; shift
+        [[ -f "${script}" ]] || { echo "aurum-eval trulens: script not found: ${script}" >&2; exit 1; }
+        exec "${PY}" "${script}" "$@"
+        ;;
+
+    *)
+        echo "aurum-eval: unknown subcommand '${cmd}'" >&2
+        usage
+        exit 2 ;;
+esac

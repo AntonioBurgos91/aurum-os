@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# AurumOS — ComfyUI launcher (Agent F / Wave 8)
+#
+# Starts ComfyUI on 127.0.0.1:8188 with profile-tuned flags and then opens the
+# default browser at that URL. Hyprland windowrule (cv-multimodal.conf) tags
+# the resulting browser window with class:aurum-comfyui so dock/menubar
+# focus-stealing rules treat it as a managed AurumOS app.
+#
+# Profile flags come from /etc/aurum/profile.conf (AURUM_COMFYUI_FLAGS):
+#   lite        — --cpu --use-pytorch-cross-attention
+#   standard    — --medvram --use-pytorch-cross-attention
+#   pro         — --highvram --use-pytorch-cross-attention
+#   workstation — --highvram --use-pytorch-cross-attention --bf16-vae
+#
+# Override at the shell:
+#   AURUM_COMFYUI_FLAGS="--lowvram --listen 0.0.0.0" aurum-launch-comfyui
+#
+# Idempotency: if ComfyUI is already listening on 8188, we just open the
+# browser at it instead of starting a second instance.
+# ==============================================================================
+
+set -uo pipefail
+
+COMFYUI_DIR="${COMFYUI_DIR:-/opt/aurum-comfyui}"
+VENV_PATH="${VENV_PATH:-/opt/aurum-dl-venv}"
+PROFILE_CONF="${PROFILE_CONF:-/etc/aurum/profile.conf}"
+LISTEN_HOST="${LISTEN_HOST:-127.0.0.1}"
+LISTEN_PORT="${LISTEN_PORT:-8188}"
+LOG_DIR="${LOG_DIR:-${HOME}/.local/state/aurum-comfyui}"
+
+log()  { echo -e "\e[34m[comfyui]\e[0m $*"; }
+warn() { echo -e "\e[33m[comfyui]\e[0m $*" >&2; }
+err()  { echo -e "\e[31m[comfyui]\e[0m $*" >&2; }
+
+# --- Load profile -------------------------------------------------------------
+# shellcheck disable=SC1090
+if [[ -f "${PROFILE_CONF}" ]]; then
+    # shellcheck disable=SC1091
+    source "${PROFILE_CONF}"
+fi
+AURUM_COMFYUI_FLAGS="${AURUM_COMFYUI_FLAGS:---use-pytorch-cross-attention}"
+
+# --- Sanity checks ------------------------------------------------------------
+if [[ ! -d "${COMFYUI_DIR}" ]]; then
+    err "ComfyUI not installed at ${COMFYUI_DIR}"
+    err "  Run: sudo bash /usr/share/aurum-os/post-install/11-install-cv-multimodal.sh"
+    err "  (lite profile skips ComfyUI install — set AURUM_PROFILE=standard or higher)"
+    exit 2
+fi
+if [[ ! -f "${COMFYUI_DIR}/main.py" ]]; then
+    err "ComfyUI checkout at ${COMFYUI_DIR} is missing main.py — re-run installer"
+    exit 3
+fi
+
+# Prefer the AurumOS DL venv if present; fall back to system python so casual
+# `python3 -m pip install -r requirements.txt` setups still work.
+PYBIN="python3"
+if [[ -x "${VENV_PATH}/bin/python" ]]; then
+    PYBIN="${VENV_PATH}/bin/python"
+fi
+
+# --- Already running? Just open the browser ----------------------------------
+already_up() {
+    # /proc/net/tcp is line-oriented hex; the listening-port column is field 2
+    # after the colon, in lowercase hex. 8188 = 0x1FFC.
+    local hex_port
+    printf -v hex_port '%04X' "${LISTEN_PORT}"
+    awk -v p="${hex_port}" 'NR>1 && $4=="0A" {split($2,a,":"); if (toupper(a[2])==p) {found=1; exit}} END {exit !found}' \
+        /proc/net/tcp /proc/net/tcp6 2>/dev/null
+}
+
+open_browser() {
+    local url="http://${LISTEN_HOST}:${LISTEN_PORT}/"
+    log "opening ${url}"
+    # Try xdg-open first (any browser the user has set as default). Fall back
+    # to known browsers in dock order. The Hyprland windowrule keys on
+    # StartupWMClass=aurum-comfyui (.desktop file), so any browser launched
+    # via .desktop gets the right window class automatically. When we exec a
+    # browser directly here, we can't easily set wm_class — accept that the
+    # ad-hoc path opens in the user's default browser without the rule.
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "${url}" >/dev/null 2>&1 &
+        return 0
+    fi
+    for b in falkon firefox chromium google-chrome brave-browser; do
+        if command -v "${b}" >/dev/null 2>&1; then
+            "${b}" "${url}" >/dev/null 2>&1 &
+            return 0
+        fi
+    done
+    warn "no browser found on PATH — open ${url} manually"
+}
+
+if already_up; then
+    log "ComfyUI already listening on ${LISTEN_HOST}:${LISTEN_PORT}"
+    open_browser
+    exit 0
+fi
+
+# --- Start ComfyUI -----------------------------------------------------------
+install -d -m 0755 "${LOG_DIR}"
+LOG_FILE="${LOG_DIR}/server.log"
+log "starting ComfyUI: cd ${COMFYUI_DIR} && ${PYBIN} main.py ${AURUM_COMFYUI_FLAGS} --port ${LISTEN_PORT} --listen ${LISTEN_HOST}"
+log "  log file: ${LOG_FILE}"
+
+# Run in the background so we can poll for readiness and open the browser
+# only once the HTTP server is actually accepting connections. setsid +
+# nohup detaches from the controlling tty; users can close the terminal
+# without killing ComfyUI.
+cd "${COMFYUI_DIR}" || { err "cd ${COMFYUI_DIR} failed"; exit 4; }
+# shellcheck disable=SC2086
+setsid nohup "${PYBIN}" main.py ${AURUM_COMFYUI_FLAGS} \
+    --port "${LISTEN_PORT}" \
+    --listen "${LISTEN_HOST}" \
+    >>"${LOG_FILE}" 2>&1 &
+disown
+SERVER_PID=$!
+log "ComfyUI pid=${SERVER_PID}"
+
+# Poll for readiness — ComfyUI takes 5-30s depending on torch warmup. Cap at
+# 60s and surface a warning rather than blocking the caller indefinitely.
+log "waiting for ComfyUI to bind ${LISTEN_PORT}..."
+for _ in $(seq 1 60); do
+    if already_up; then
+        log "ComfyUI is up"
+        open_browser
+        exit 0
+    fi
+    sleep 1
+done
+warn "ComfyUI did not bind ${LISTEN_PORT} within 60s — check ${LOG_FILE}"
+exit 5

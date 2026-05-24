@@ -1,0 +1,28 @@
+# AurumOS — LLM quantization stack (Agent A / Wave 8)
+#
+# Consumed by: distro/post-install/05-install-quantization.sh
+#
+# Pinning policy (different from pip-requirements.txt): hard pins here, because
+# the quantization toolchain is famously fragile across point releases
+# (bitsandbytes <-> torch ABI, autoawq <-> transformers tokenizer kwargs, etc.).
+# Bump deliberately in a single PR with the recipes/* re-validated.
+#
+# All wheels below have CPU-installable distributions as of 2025-11; on a
+# CUDA-less host they install with a runtime warning ("CUDA libraries not
+# found") but `import` succeeds, which is what we test in the Docker preview.
+
+# --- Quantization kernels -----------------------------------------------------
+bitsandbytes==0.46.1            # NF4 / int8 inference + QLoRA backbone
+auto-gptq==0.7.1                # GPTQ quantization (renamed from autogptq in 0.7)
+autoawq==0.2.9                  # AWQ quantization, ships pre-built wheels (no nvcc)
+
+# --- HF glue ------------------------------------------------------------------
+optimum>=1.24,<2                # HF interface for ORT / OpenVINO / GPTQ pipelines
+accelerate>=1.2,<2              # device_map=auto, mixed precision, multi-GPU dispatch
+transformers>=4.46,<5           # required floor for AutoAWQ 0.2.9 fused kernels
+safetensors>=0.4.5
+
+# --- Misc helpers used by recipes/quantization/*.py ---------------------------
+datasets>=3.0
+sentencepiece>=0.2.0
+protobuf>=4.25,<6

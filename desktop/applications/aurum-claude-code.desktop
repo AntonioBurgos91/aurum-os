@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Claude Code
+GenericName=Anthropic Claude Code CLI
+Comment=Anthropic's official terminal coding agent (requires ANTHROPIC_API_KEY)
+TryExec=claude
+Exec=xterm -class aurum-claude-code -title "Claude Code" -e bash -lc "cd \"${PWD:-$HOME}\" && (command -v claude >/dev/null || { echo 'claude not installed — run: npm install -g @anthropic-ai/claude-code'; exec bash; }); [[ -z \"${ANTHROPIC_API_KEY:-}\" ]] && echo 'WARNING: ANTHROPIC_API_KEY not set; Claude Code will prompt to log in.'; exec claude"
+Icon=utilities-terminal
+Categories=Development;TextEditor;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-claude-code
+Keywords=claude;anthropic;ai;coding;agent;cli;

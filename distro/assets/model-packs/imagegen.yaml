@@ -1,0 +1,47 @@
+# ==============================================================================
+# AurumOS Model Pack: imagegen
+#
+# Stable Diffusion XL (Turbo variant) + ControlNet Canny + the EMA VAE,
+# laid out under /opt/aurum-comfyui/models/{checkpoints,controlnet,vae}.
+# ComfyUI is auto-installed by Wave 8 (06-install-comfyui.sh); this pack
+# just drops weights into the directories it already scans.
+#
+# We also mirror them under ~/.cache/aurum/models/comfyui-mirror/ so the
+# CLI's `cache-size` / `remove` commands can track ownership.
+# ==============================================================================
+id: imagegen
+title: Image Generation Pack
+description: >
+  SDXL Turbo + ControlNet Canny (SDXL) + sd-vae-ft-ema. Auto-installs into
+  the ComfyUI model tree at /opt/aurum-comfyui/models/. ~3 sec / image on
+  an RTX 4070, ~25 sec on CPU.
+size_bytes: 8589934592        # ~8 GiB
+min_profile: standard         # needs ~6 GB VRAM to feel snappy
+docs_url: https://docs.aurumos.dev/model-packs/imagegen
+tags:
+  - image
+  - diffusion
+  - comfyui
+  - sdxl
+
+models:
+  - source: hf
+    repo: stabilityai/sdxl-turbo
+    files: ["sd_xl_turbo_1.0_fp16.safetensors"]
+    dest: /opt/aurum-comfyui/models/checkpoints/
+    size_bytes: 6938040320    # ~6.46 GiB
+    role: base-checkpoint
+
+  - source: hf
+    repo: diffusers/controlnet-canny-sdxl-1.0
+    files: ["diffusion_pytorch_model.fp16.safetensors", "config.json"]
+    dest: /opt/aurum-comfyui/models/controlnet/
+    size_bytes: 1252000000    # ~1.17 GiB
+    role: controlnet
+
+  - source: hf
+    repo: stabilityai/sd-vae-ft-ema-original
+    files: ["vae-ft-ema-560000-ema-pruned.safetensors"]
+    dest: /opt/aurum-comfyui/models/vae/
+    size_bytes: 334642000     # ~319 MB
+    role: vae

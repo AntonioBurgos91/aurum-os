@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Marimo
+GenericName=Reactive Notebook
+Comment=Reactive Python notebooks (pure-Python files, reproducible by design)
+TryExec=marimo
+Exec=bash -lc "mkdir -p ~/notebooks && exec marimo edit ~/notebooks/welcome.py"
+Icon=text-x-python
+Categories=Development;Science;Education;
+Terminal=false
+StartupNotify=false
+Keywords=marimo;notebook;reactive;python;

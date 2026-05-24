@@ -1,0 +1,52 @@
+# ==============================================================================
+# AurumOS Model Pack: workstation
+#
+# Heavy artillery for >= 24 GB VRAM machines: 70B-class chat models (quantized
+# to fit in 24 GB), Flux.1-dev for top-tier image gen, and the full SDXL base
+# checkpoint (non-Turbo). Gated to the `workstation` profile — install on a
+# smaller machine will refuse without --force, and even with --force the
+# Ollama runtime will OOM at load time on insufficient VRAM.
+# ==============================================================================
+id: workstation
+title: Workstation Pack
+description: >
+  Heavy artillery for >= 24 GB VRAM: llama3.3:70b-instruct (q4_K_M),
+  qwen2.5:72b (q4), Flux.1-dev (~24 GB), and the full SDXL 1.0 base.
+  Expect ~55 GB of disk after install.
+size_bytes: 59055800320       # ~55 GiB
+min_profile: workstation
+docs_url: https://docs.aurumos.dev/model-packs/workstation
+tags:
+  - llm
+  - image
+  - diffusion
+  - heavy
+  - 70b
+  - flux
+
+models:
+  - source: ollama
+    name: llama3.3:70b-instruct-q4_K_M
+    size_bytes: 42500000000   # ~39.6 GiB
+    role: chat-flagship
+
+  - source: ollama
+    name: qwen2.5:72b
+    size_bytes: 41200000000   # ~38.4 GiB (q4_K_M default tag)
+    role: chat-flagship-alt
+
+  - source: hf
+    repo: black-forest-labs/FLUX.1-dev
+    files:
+      - "flux1-dev.safetensors"
+      - "ae.safetensors"
+    dest: /opt/aurum-comfyui/models/checkpoints/
+    size_bytes: 25800000000   # ~24 GiB
+    role: diffusion-flagship
+
+  - source: hf
+    repo: stabilityai/stable-diffusion-xl-base-1.0
+    files: ["sd_xl_base_1.0.safetensors"]
+    dest: /opt/aurum-comfyui/models/checkpoints/
+    size_bytes: 6938040320    # ~6.46 GiB
+    role: diffusion-base

@@ -1,0 +1,80 @@
+# AurumOS desktop preview — docker-compose profiles for the 3 common host
+# configurations. Pick the one that matches your PC and run:
+#
+#   docker compose --profile <name> up --build
+#
+# Then open  http://localhost:6080/vnc.html
+#
+# Profiles:
+#   amd-intel  — passes /dev/dri (works on any Mesa-supported GPU)
+#   nvidia     — uses the NVIDIA Container Toolkit (--gpus all)
+#   software   — no GPU at all; Hyprland uses pixman software renderer.
+#                Slowest but always works. Useful for verifying the stack
+#                on machines without a GPU exposed to the container.
+
+services:
+  # ----------------------------------------------------------------------
+  # AMD / Intel GPU
+  # ----------------------------------------------------------------------
+  aurum-desktop-amd-intel:
+    profiles: ["amd-intel"]
+    build:
+      context: ../..
+      dockerfile: distro/demo/Dockerfile.desktop
+    image: aurumos:desktop
+    container_name: aurum-desktop
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    environment:
+      GPU_BACKEND: drm
+    ports:
+      - "6080:6080"
+      - "5900:5900"
+
+  # ----------------------------------------------------------------------
+  # NVIDIA GPU (requires nvidia-container-toolkit on host)
+  # ----------------------------------------------------------------------
+  aurum-desktop-nvidia:
+    profiles: ["nvidia"]
+    build:
+      context: ../..
+      dockerfile: distro/demo/Dockerfile.desktop
+    image: aurumos:desktop
+    container_name: aurum-desktop
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu", "display"]
+    devices:
+      - /dev/dri:/dev/dri          # Hyprland still reaches DRM via libdrm
+    environment:
+      GPU_BACKEND: drm
+      NVIDIA_DRIVER_CAPABILITIES: "all"
+    ports:
+      - "6080:6080"
+      - "5900:5900"
+
+  # ----------------------------------------------------------------------
+  # No GPU — pixman software renderer
+  # ----------------------------------------------------------------------
+  aurum-desktop-software:
+    profiles: ["software"]
+    build:
+      context: ../..
+      dockerfile: distro/demo/Dockerfile.desktop
+    image: aurumos:desktop
+    container_name: aurum-desktop
+    environment:
+      GPU_BACKEND: headless
+      WLR_BACKENDS: headless
+      WLR_RENDERER: pixman
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      WLR_NO_HARDWARE_CURSORS: "1"
+    ports:
+      - "6080:6080"
+      - "5900:5900"

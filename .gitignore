@@ -1,0 +1,34 @@
+# Build artifacts
+/build/
+/target/
+**/build/
+**/target/
+*.o
+*.so
+*.dylib
+
+# Cargo
+**/Cargo.lock
+!Cargo.lock           # commit lock files (good practice for binaries)
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Generated
+*.qmlc
+*.qmltypes
+moc_*.cpp
+
+# Runtime / preview
+*.log
+/distro/demo/cache/
+*.iso
+**/SHA256SUMS
+
+# Secrets (defense in depth — there shouldn't be any but just in case)
+*.pem
+*.key
+*.env.local

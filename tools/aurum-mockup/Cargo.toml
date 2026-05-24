@@ -1,0 +1,40 @@
+[package]
+name    = "aurum-mockup"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Renderer family for AurumOS imagery:
+#   * aurum-mockup    — hero shot of the desktop (used in marketing/docs)
+#   * aurum-wallpaper — Sequoia-style abstract wallpaper (drives swaybg)
+#   * aurum-icons     — macOS-style squircle icon set for the dock
+#
+# All three binaries share helpers via `lib.rs`. tiny-skia handles AA path
+# rasterisation, fontdue rasterises TrueType glyphs without pulling in
+# pango/cairo, and png writes the output with no extra dependencies.
+
+[dependencies]
+tiny-skia = "0.11"
+fontdue   = "0.9"
+png       = "0.17"
+
+[lib]
+name = "aurum_render"
+path = "src/lib.rs"
+
+[[bin]]
+name = "aurum-mockup"
+path = "src/main.rs"
+
+[[bin]]
+name = "aurum-wallpaper"
+path = "src/bin/wallpaper.rs"
+
+[[bin]]
+name = "aurum-icons"
+path = "src/bin/icons.rs"
+
+[profile.release]
+lto           = "fat"
+codegen-units = 1
+opt-level     = 3

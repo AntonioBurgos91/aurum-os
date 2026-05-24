@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-sglang — start an SGLang server (RadixAttention + structured
+# JSON-schema output). Better than vLLM for agent loops; worse for raw
+# single-prompt throughput.
+#
+# Hard-blocks on profile=lite — SGLang needs CUDA + flashinfer.
+#
+# Port: 30000   Window class: aurum-sglang
+# ==============================================================================
+set -euo pipefail
+
+SGLANG_PORT="${SGLANG_PORT:-30000}"
+SGLANG_HOST="${SGLANG_HOST:-0.0.0.0}"
+SGLANG_URL="http://localhost:${SGLANG_PORT}"
+SGLANG_PID_FILE="${SGLANG_PID_FILE:-/tmp/aurum-sglang.pid}"
+SGLANG_LOG="${SGLANG_LOG:-/tmp/aurum-sglang.log}"
+PROFILE_CONF="${PROFILE_CONF:-/etc/aurum/profile.conf}"
+
+log()  { echo -e "\e[34m[sglang]\e[0m $*"; }
+warn() { echo -e "\e[33m[sglang]\e[0m $*" >&2; }
+die()  { echo -e "\e[31m[sglang]\e[0m $*" >&2; exit 1; }
+
+AURUM_PROFILE="lite"
+if [[ -r "${PROFILE_CONF}" ]]; then
+    # shellcheck disable=SC1090
+    source "${PROFILE_CONF}" 2>/dev/null || true
+fi
+if [[ "${AURUM_PROFILE}" == "lite" ]]; then
+    die "SGLang is not supported on profile=lite (no NVIDIA GPU detected).
+
+Alternatives that work on this machine:
+  • aurum-launch-litellm    — OpenAI-shape proxy
+  • ollama run llama3.2:3b  — CPU-friendly local LLM
+
+If this machine DOES have an RTX GPU, regenerate the profile:
+  sudo /usr/local/bin/aurum-detect-profile"
+fi
+
+case "${AURUM_PROFILE}" in
+    pro)         DEFAULT_MODEL="Qwen/Qwen2.5-14B-Instruct-AWQ" ;;
+    workstation) DEFAULT_MODEL="Qwen/Qwen2.5-32B-Instruct-AWQ" ;;
+    *)           DEFAULT_MODEL="Qwen/Qwen2.5-7B-Instruct-AWQ" ;;
+esac
+SGLANG_MODEL="${SGLANG_MODEL:-${DEFAULT_MODEL}}"
+
+# SGLang is invoked as a python module, not a top-level CLI.
+if [[ -x /opt/aurum-dl-venv/bin/python ]]; then
+    PY=/opt/aurum-dl-venv/bin/python
+else
+    PY="$(command -v python3 || true)"
+fi
+[[ -n "${PY}" ]] || die "no python3 found"
+
+if [[ -f "${SGLANG_PID_FILE}" ]] && kill -0 "$(cat "${SGLANG_PID_FILE}")" 2>/dev/null; then
+    if curl -fsS -o /dev/null --max-time 1 "${SGLANG_URL}/health" 2>/dev/null; then
+        log "SGLang already running (pid $(cat "${SGLANG_PID_FILE}"))"
+    else
+        warn "stale pid file — restarting"
+        rm -f "${SGLANG_PID_FILE}"
+    fi
+fi
+
+if [[ ! -f "${SGLANG_PID_FILE}" ]]; then
+    log "launching SGLang (${SGLANG_MODEL}) on :${SGLANG_PORT}"
+    # `python -m sglang.launch_server` is the documented entrypoint; flags
+    # mirror vLLM closely so most recipes port over with no changes.
+    nohup "${PY}" -m sglang.launch_server \
+        --model-path "${SGLANG_MODEL}" \
+        --host "${SGLANG_HOST}" --port "${SGLANG_PORT}" \
+        --quantization awq \
+        --mem-fraction-static 0.85 \
+        > "${SGLANG_LOG}" 2>&1 &
+    echo $! > "${SGLANG_PID_FILE}"
+    log "started (pid $(cat "${SGLANG_PID_FILE}")). First-time model download can take several minutes."
+fi
+
+for _ in $(seq 1 120); do
+    if curl -fsS -o /dev/null --max-time 1 "${SGLANG_URL}/health" 2>/dev/null; then
+        log "SGLang ready at ${SGLANG_URL}/v1 (OpenAI-compatible)"
+        break
+    fi
+    sleep 1
+done
+
+if command -v falkon >/dev/null 2>&1; then
+    log "opening Falkon → ${SGLANG_URL}"
+    exec falkon --wmclass aurum-sglang --no-extensions "${SGLANG_URL}" >/dev/null 2>&1 &
+elif command -v xdg-open >/dev/null 2>&1; then
+    warn "falkon not installed — falling back to xdg-open"
+    exec xdg-open "${SGLANG_URL}" >/dev/null 2>&1 &
+else
+    log "no browser available — SGLang is up at ${SGLANG_URL}/v1"
+fi

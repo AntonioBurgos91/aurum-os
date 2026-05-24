@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aurum-weather"
+version = "0.1.0"
+description = "Sample AurumOS MCP server exposing a get_weather tool."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "AurumOS" }]
+dependencies = [
+  "mcp>=0.9",
+  "pydantic>=2.6",
+]
+
+[project.scripts]
+aurum-weather = "aurum_weather.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["aurum_weather"]

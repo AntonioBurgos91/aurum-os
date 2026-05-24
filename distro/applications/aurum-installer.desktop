@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install AurumOS
+GenericName=System Installer
+Comment=Install AurumOS to a disk
+TryExec=aurum-installer
+Exec=aurum-installer
+Icon=system-software-install
+Categories=System;Settings;
+Terminal=false
+StartupNotify=true
+NoDisplay=false
+Keywords=install;setup;

@@ -1,0 +1,38 @@
+# AurumOS — LLM observability + eval stack (Wave 8, Agent E)
+#
+# Installed by: distro/post-install/10-install-observability.sh
+# Profile gating: pip libs always; self-hosted Langfuse Docker only on
+#                 standard|pro|workstation tiers.
+#
+# Pinning policy: floors only. We track upstream's 2025-2026 cadence — these
+# packages release every 2-4 weeks and an upper cap creates resolver pain
+# faster than it prevents breakage. If a future release breaks the recipes
+# in recipes/observability/ or recipes/eval/, pin here.
+
+# --- Tracing / observability ---
+# Langfuse Python SDK (v2 series; v3 is breaking-rewrite still maturing).
+langfuse>=2.50
+# Arize Phoenix — in-process eval UI + OpenTelemetry collector.
+arize-phoenix>=5.0
+# OpenInference auto-instrumentors. These hook the named libraries to emit
+# OTel spans Phoenix and Langfuse both consume.
+openinference-instrumentation-litellm
+openinference-instrumentation-langchain
+openinference-instrumentation-dspy
+# OpenTelemetry exporter — Phoenix consumes OTLP/HTTP on :6006 by default.
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+
+# --- Eval frameworks ---
+# TruLens (renamed from trulens-eval in 1.x; the new package name is just
+# `trulens`. Pin the meta-package which pulls trulens-core + providers.)
+trulens>=1.0
+# Ragas — RAG-specific metrics (faithfulness, answer_relevancy, context_*).
+ragas>=0.2
+# DeepEval — pytest-style LLM testing.
+deepeval>=1.0
+
+# --- LLM provider shims used by the eval recipes ---
+# litellm is already installed by Agent B (Wave 8) but we declare it as a
+# soft requirement so this file is self-contained when run standalone in CI.
+litellm

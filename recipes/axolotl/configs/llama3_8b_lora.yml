@@ -1,0 +1,73 @@
+# AurumOS — Axolotl QLoRA config for Llama-3.1-8B (pro / workstation tiers)
+#
+# Run with:
+#   accelerate launch -m axolotl.cli.train recipes/axolotl/configs/llama3_8b_lora.yml
+#
+# Memory profile: ~14 GB VRAM with sequence_len 4096, batch 2, bf16.
+# Drop micro_batch_size to 1 for 12 GB cards; raise sequence_len to 8192
+# on 24 GB+ if your data warrants it.
+
+base_model: meta-llama/Meta-Llama-3.1-8B-Instruct
+model_type: LlamaForCausalLM
+tokenizer_type: AutoTokenizer
+
+load_in_4bit: true
+strict: false
+
+datasets:
+  - path: tatsu-lab/alpaca
+    type: alpaca
+
+dataset_prepared_path: ~/.cache/axolotl/llama3_8b_alpaca
+val_set_size: 0.02
+output_dir: ~/finetune-out/llama3.1-8b-axolotl-qlora
+
+adapter: qlora
+lora_model_dir:
+sequence_len: 4096
+sample_packing: true
+pad_to_sequence_len: true
+
+lora_r: 32
+lora_alpha: 16
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+lora_target_linear: false
+
+gradient_accumulation_steps: 4
+micro_batch_size: 2
+num_epochs: 3
+optimizer: adamw_bnb_8bit
+lr_scheduler: cosine
+learning_rate: 0.0002
+
+train_on_inputs: false
+group_by_length: false
+bf16: auto
+fp16: false
+tf32: true
+
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+
+logging_steps: 10
+flash_attention: true
+
+warmup_ratio: 0.03
+evals_per_epoch: 2
+saves_per_epoch: 1
+weight_decay: 0.0
+
+# DeepSpeed (uncomment for pro/workstation multi-GPU)
+# deepspeed: deepspeed_configs/zero2.json
+
+special_tokens:
+  pad_token: <|finetune_right_pad_id|>

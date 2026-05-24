@@ -1,0 +1,46 @@
+# ==============================================================================
+# AurumOS Model Pack: speech
+#
+# Speech-to-text (Whisper small + medium-int8 via faster-whisper) and
+# text-to-speech (Piper, en_US-amy-medium). Lite-profile friendly: the small
+# Whisper + Piper amy voice both run comfortably on CPU.
+# ==============================================================================
+id: speech
+title: Speech Pack
+description: >
+  Whisper-small + Whisper-medium-int8 for STT (via faster-whisper / openai
+  whisper), and Piper TTS (en_US-amy-medium voice). Both engines run on CPU,
+  GPU optional.
+size_bytes: 2147483648        # ~2 GiB
+min_profile: lite
+docs_url: https://docs.aurumos.dev/model-packs/speech
+tags:
+  - audio
+  - asr
+  - tts
+  - whisper
+  - piper
+
+models:
+  - source: hf
+    repo: Systran/faster-whisper-small
+    files: ["model.bin", "config.json", "tokenizer.json", "vocabulary.txt"]
+    dest: ~/.cache/aurum/models/speech/faster-whisper-small/
+    size_bytes: 484000000     # ~484 MB
+    role: asr-fast
+
+  - source: hf
+    repo: Systran/faster-whisper-medium
+    files: ["model.bin", "config.json", "tokenizer.json", "vocabulary.txt"]
+    dest: ~/.cache/aurum/models/speech/faster-whisper-medium/
+    size_bytes: 1530000000    # ~1.43 GiB (int8 quantized)
+    role: asr-quality
+
+  - source: hf
+    repo: rhasspy/piper-voices
+    files:
+      - "en/en_US/amy/medium/en_US-amy-medium.onnx"
+      - "en/en_US/amy/medium/en_US-amy-medium.onnx.json"
+    dest: ~/.cache/aurum/models/speech/piper/en_US-amy-medium/
+    size_bytes: 63000000      # ~63 MB
+    role: tts

@@ -1,0 +1,38 @@
+{
+  "models": [
+    {
+      "title": "Local Ollama (Auto)",
+      "provider": "ollama",
+      "model": "${AURUM_OLLAMA_DEFAULT}",
+      "apiBase": "http://localhost:11434"
+    },
+    {
+      "title": "Claude 3.5 Sonnet (API)",
+      "provider": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "apiKey": ""
+    },
+    {
+      "title": "GPT-4o (API)",
+      "provider": "openai",
+      "model": "gpt-4o"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Local Tab Autocomplete",
+    "provider": "ollama",
+    "model": "qwen2.5-coder:1.5b",
+    "apiBase": "http://localhost:11434"
+  },
+  "embeddingsProvider": {
+    "provider": "ollama",
+    "model": "nomic-embed-text"
+  },
+  "customCommands": [
+    {
+      "name": "test",
+      "prompt": "Write unit tests for the highlighted code.",
+      "description": "Write unit tests"
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-tgi — start Hugging Face text-generation-inference.
+#
+# TGI is the reference server for HF-hosted weights; it's the binary backing
+# most HF demo Spaces. Continuous-batching is very mature here. Worse than
+# vLLM for raw throughput on quantized models, but the gold standard for
+# bf16 / fp16 inference of the HF-released checkpoints.
+#
+# Hard-blocks on profile=lite (CUDA required at runtime).
+#
+# Port: 8080   Window class: aurum-tgi
+# ==============================================================================
+set -euo pipefail
+
+TGI_PORT="${TGI_PORT:-8080}"
+TGI_HOST="${TGI_HOST:-0.0.0.0}"
+TGI_URL="http://localhost:${TGI_PORT}"
+TGI_PID_FILE="${TGI_PID_FILE:-/tmp/aurum-tgi.pid}"
+TGI_LOG="${TGI_LOG:-/tmp/aurum-tgi.log}"
+TGI_INSTALL_DIR="${TGI_INSTALL_DIR:-/opt/aurum-tgi}"
+PROFILE_CONF="${PROFILE_CONF:-/etc/aurum/profile.conf}"
+
+log()  { echo -e "\e[34m[tgi]\e[0m $*"; }
+warn() { echo -e "\e[33m[tgi]\e[0m $*" >&2; }
+die()  { echo -e "\e[31m[tgi]\e[0m $*" >&2; exit 1; }
+
+AURUM_PROFILE="lite"
+if [[ -r "${PROFILE_CONF}" ]]; then
+    # shellcheck disable=SC1090
+    source "${PROFILE_CONF}" 2>/dev/null || true
+fi
+if [[ "${AURUM_PROFILE}" == "lite" ]]; then
+    die "TGI is not supported on profile=lite (no NVIDIA GPU detected).
+
+Alternatives that work on this machine:
+  • aurum-launch-litellm    — OpenAI-shape proxy
+  • ollama run llama3.2:3b  — CPU-friendly local LLM"
+fi
+
+# TGI cannot load AWQ in the released bf16-only binaries (4-bit AWQ paths are
+# gated behind the docker image, not the standalone tarball). We pick the
+# non-quantized HF weights here; users wanting AWQ should reach for vLLM.
+case "${AURUM_PROFILE}" in
+    pro)         DEFAULT_MODEL="Qwen/Qwen2.5-7B-Instruct" ;;
+    workstation) DEFAULT_MODEL="Qwen/Qwen2.5-14B-Instruct" ;;
+    *)           DEFAULT_MODEL="meta-llama/Llama-3.2-3B-Instruct" ;;
+esac
+TGI_MODEL="${TGI_MODEL:-${DEFAULT_MODEL}}"
+
+# Resolve the launcher binary. If 07-install-llm-serving.sh installed only
+# the fetch stub, run it now to grab the real binary.
+TGI_BIN="${TGI_INSTALL_DIR}/text-generation-launcher"
+if [[ ! -x "${TGI_BIN}" ]]; then
+    if [[ -x "${TGI_INSTALL_DIR}/fetch-tgi.sh" ]]; then
+        log "TGI binary not present yet — running fetcher (~300 MB download)..."
+        if ! bash "${TGI_INSTALL_DIR}/fetch-tgi.sh"; then
+            die "TGI fetcher failed; try re-running with network access."
+        fi
+    else
+        die "TGI not installed and no fetch stub at ${TGI_INSTALL_DIR}/fetch-tgi.sh.
+Re-run: bash /usr/share/aurum-os/post-install/07-install-llm-serving.sh"
+    fi
+fi
+
+if [[ -f "${TGI_PID_FILE}" ]] && kill -0 "$(cat "${TGI_PID_FILE}")" 2>/dev/null; then
+    if curl -fsS -o /dev/null --max-time 1 "${TGI_URL}/health" 2>/dev/null; then
+        log "TGI already running (pid $(cat "${TGI_PID_FILE}"))"
+    else
+        warn "stale pid file — restarting"
+        rm -f "${TGI_PID_FILE}"
+    fi
+fi
+
+if [[ ! -f "${TGI_PID_FILE}" ]]; then
+    log "launching TGI (${TGI_MODEL}) on :${TGI_PORT}"
+    nohup "${TGI_BIN}" \
+        --model-id "${TGI_MODEL}" \
+        --hostname "${TGI_HOST}" \
+        --port "${TGI_PORT}" \
+        > "${TGI_LOG}" 2>&1 &
+    echo $! > "${TGI_PID_FILE}"
+    log "started (pid $(cat "${TGI_PID_FILE}")). First-time model download can take several minutes."
+fi
+
+for _ in $(seq 1 180); do
+    if curl -fsS -o /dev/null --max-time 1 "${TGI_URL}/health" 2>/dev/null; then
+        log "TGI ready at ${TGI_URL} (OpenAI-compatible at /v1)"
+        break
+    fi
+    sleep 1
+done
+
+if command -v falkon >/dev/null 2>&1; then
+    log "opening Falkon → ${TGI_URL}"
+    exec falkon --wmclass aurum-tgi --no-extensions "${TGI_URL}" >/dev/null 2>&1 &
+elif command -v xdg-open >/dev/null 2>&1; then
+    warn "falkon not installed — falling back to xdg-open"
+    exec xdg-open "${TGI_URL}" >/dev/null 2>&1 &
+else
+    log "no browser available — TGI is up at ${TGI_URL}/v1"
+fi

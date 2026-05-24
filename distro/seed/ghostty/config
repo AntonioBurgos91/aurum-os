@@ -1,0 +1,28 @@
+# ==============================================================================
+# AurumOS Ghostty Terminal Configuration
+# Clean macOS styling, borderless layout, slight transparency, and custom font.
+# ==============================================================================
+
+# Font configuration
+font-family = "SF Pro Mono"
+font-family-bold = "SF Pro Mono"
+font-size = 11.0
+
+# Window Styling (macOS titlebar free design)
+window-decoration = false
+window-padding-x = 10
+window-padding-y = 10
+
+# Color theme and background opacity
+# Slight transparency for elegance, kept reasonable to prevent readability loss
+background-opacity = 0.92
+background-blur = false
+
+# Cursor styling
+cursor-style = block
+cursor-style-blink = true
+
+# Theme choice matching macOS Terminal dark palette
+theme = dark
+command = fish
+confirm-close-surface = false

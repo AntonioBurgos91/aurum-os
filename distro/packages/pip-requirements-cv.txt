@@ -1,0 +1,69 @@
+# AurumOS — Computer Vision & Multimodal stack (Agent F / Wave 8)
+#
+# Consumed by: distro/post-install/11-install-cv-multimodal.sh
+#
+# Profile-blind: all four tiers install the same Python surface. What changes
+# per profile is which weights `aurum-cv-download-models` fetches and whether
+# ComfyUI is cloned (lite skips it — no GPU = unusable in practice).
+#
+# Pinning policy: floors with a hard upper bound on a few brittle leafs.
+# Multimodal libraries (transformers + accelerate combos) churn weekly; pin
+# minimums that we've actually validated recipes against, no upper caps unless
+# a downstream consumer (sam2, controlnet-aux) breaks on the major bump.
+#
+# All wheels below have CPU-installable distributions; on a CUDA-less host they
+# install with a runtime warning ("CUDA libraries not found") but `import`
+# succeeds — that's what we test in the Docker preview.
+
+# --- Detection & tracking -----------------------------------------------------
+ultralytics>=8.3                # YOLOv11 (n/s/m/l/x), tracking, pose, OBB, seg
+                                # Wave 7 floor was 8.3 — kept identical so two
+                                # waves resolve to the same pin and don't churn.
+
+# --- Segment Anything 2 -------------------------------------------------------
+# Upstream changed the pypi name twice in 2024-2025: `segment-anything-2` (the
+# Facebook fork's first release), then `sam-2` (re-cut as the canonical name).
+# Neither has been deprecated, both ship the `sam2` import. We request the
+# canonical name; the install script has a git-fallback for hosts whose mirror
+# resolves only one of the two names.
+sam-2>=1.0 ; python_version >= "3.10"
+
+# --- DINOv2 -------------------------------------------------------------------
+# Facebook does NOT publish DINOv2 to PyPI as of 2025-11 — only the model
+# weights on HuggingFace and the code on GitHub. The install script falls back
+# to `pip install git+https://github.com/facebookresearch/dinov2.git` when this
+# line resolves nothing (no wheel exists). Listed here for documentation and so
+# `pip install -r` produces the same error surface across machines.
+# dinov2 is consumed via `transformers.AutoModel.from_pretrained("facebook/dinov2-base")`
+# which doesn't need the upstream repo, so this is informational only.
+
+# --- CLIP & vision-language ---------------------------------------------------
+open-clip-torch>=2.30           # OpenCLIP — zero-shot classification + embeddings
+                                # Also used by ComfyUI's CLIPLoader nodes.
+
+# --- ControlNet preprocessors -------------------------------------------------
+controlnet-aux>=0.0.9           # Canny, depth, normal, OpenPose preprocessors.
+                                # Pure-python wrappers around opencv/mediapipe;
+                                # no CUDA build, installs everywhere.
+
+# --- Diffusion -----------------------------------------------------------------
+diffusers>=0.32                 # SD/SDXL/SD3/Flux pipelines + schedulers.
+                                # ComfyUI ships its own runner; diffusers is for
+                                # the recipes/ and notebooks/ workflows.
+accelerate>=1.2                 # device_map=auto for the multimodal notebooks.
+                                # (Already pulled in by quant, re-pinned here so
+                                # this file is self-sufficient.)
+safetensors>=0.4.5              # Weights I/O for everything above.
+
+# --- Multimodal LLM helpers ---------------------------------------------------
+# `transformers` is pinned in pip-requirements.txt (base DL stack). We re-list
+# it as a floor here so a standalone `pip install -r pip-requirements-cv.txt`
+# (e.g. when an existing AurumOS install adds the CV stack post-hoc) pulls a
+# version new enough for LLaVA / InternVL2 / Qwen2-VL processors.
+transformers>=4.46
+sentencepiece>=0.2.0
+einops>=0.8.0                   # required by InternVL2 / Qwen2-VL forward passes
+
+# --- Notebook glue ------------------------------------------------------------
+# Jupyter is in the base stack; we depend on its presence at runtime, no need
+# to re-pin here. Pillow / opencv-python come from Wave 7's base.

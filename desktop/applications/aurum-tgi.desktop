@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TGI Server
+GenericName=Text Generation Inference (Hugging Face)
+Comment=Hugging Face's Rust-based LLM server, the reference for HF-hosted weights (port 8080)
+TryExec=aurum-launch-tgi
+Exec=aurum-launch-tgi
+Icon=applications-science
+Categories=Development;AI;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-tgi
+Keywords=tgi;huggingface;llm;serving;inference;

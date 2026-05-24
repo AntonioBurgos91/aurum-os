@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=SGLang Server
+GenericName=Structured-Output LLM Server
+Comment=RadixAttention-based LLM server with JSON-schema constrained decoding (port 30000)
+TryExec=aurum-launch-sglang
+Exec=aurum-launch-sglang
+Icon=applications-science
+Categories=Development;AI;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-sglang
+Keywords=sglang;llm;serving;inference;structured;json;

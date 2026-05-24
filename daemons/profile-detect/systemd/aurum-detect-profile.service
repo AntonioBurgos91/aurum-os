@@ -1,0 +1,25 @@
+[Unit]
+Description=AurumOS hardware profile detection (writes /etc/aurum/profile.conf)
+# We need /proc/meminfo + nvidia-smi PATH; both available at multi-user.target.
+# Run before any service that consumes /etc/aurum/profile.conf (Wave 8/9
+# launchers all read it on demand, so a hard Before= chain is overkill).
+DefaultDependencies=yes
+After=local-fs.target
+ConditionPathExists=/usr/local/bin/aurum-detect-profile
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/aurum-detect-profile
+# Detection is read-only modulo the conf write; lock the rest of the FS down.
+ProtectSystem=full
+ReadWritePaths=/etc/aurum
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+# Don't fail the boot if detection errors — fall back to whatever conf is
+# already on disk (or the all-defaults from a previous boot).
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target

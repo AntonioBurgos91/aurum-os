@@ -1,0 +1,39 @@
+# ==============================================================================
+# AurumOS Model Pack: coding
+#
+# Local code completion + chat models for any IDE (Continue.dev, Aider, Cody,
+# Claude Code shell). The 7B variant is the standard daily driver; the 14B
+# variant is gated to the `pro` profile (needs >=12 GB VRAM to stay snappy).
+# The embed model powers Continue.dev's @codebase retrieval.
+# ==============================================================================
+id: coding
+title: Coding Pack
+description: >
+  Local code completion + chat models for any IDE (Continue.dev, Aider,
+  Claude Code). Ships qwen2.5-coder in 7B (default) and 14B (pro tier)
+  plus a small embedding model for codebase RAG.
+size_bytes: 13594504208       # ~12.7 GiB total (sum of model sizes below)
+min_profile: standard         # CPU-only `lite` can't run 7B comfortably
+docs_url: https://docs.aurumos.dev/model-packs/coding
+tags:
+  - llm
+  - code
+  - continue.dev
+  - aider
+
+models:
+  - source: ollama
+    name: qwen2.5-coder:7b
+    size_bytes: 4683304960    # 4.36 GiB
+    role: code-completion
+
+  - source: ollama
+    name: qwen2.5-coder:14b
+    size_bytes: 8988366000    # 8.37 GiB
+    min_profile: pro          # this specific model gated higher
+    role: code-chat
+
+  - source: ollama
+    name: nomic-embed-text
+    size_bytes: 274300000     # 270 MB — Continue.dev @codebase embeddings
+    role: embeddings

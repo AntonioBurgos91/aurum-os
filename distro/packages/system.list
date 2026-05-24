@@ -1,0 +1,85 @@
+# AurumOS - System packages list
+# This list defines the baseline system tools, libraries, editors, and display protocols.
+
+# --- Build Toolchains and Runtimes ---
+build-essential
+gcc-14
+g++-14
+clang-18
+lld-18
+cmake
+git
+git-lfs
+pkg-config
+curl
+wget
+libvulkan-dev
+libwlroots-dev
+libwayland-dev
+wayland-protocols
+libxkbcommon-dev
+libinput-dev
+libdbus-1-dev
+pipewire
+wireplumber
+bcachefs-tools
+zram-config
+
+# --- UI Framework Libraries (Qt6) ---
+# -dev packages provide headers for the C++ build; the qml6-module-* packages
+# provide the *runtime* plugins the binaries load when they `import QtQuick.*`.
+# Without these the desktop binaries start but every `import` fails silently.
+qt6-base-dev
+qt6-declarative-dev
+qt6-wayland
+qt6-multimedia-dev
+libqt6svg6
+qml6-module-qtquick
+qml6-module-qtquick-controls
+qml6-module-qtquick-layouts
+qml6-module-qtquick-window
+qml6-module-qtquick-dialogs
+qml6-module-qtquick-templates
+qml6-module-qtqml
+qml6-module-qtqml-workerscript
+qml6-module-qtqml-models
+
+# --- User Workspace Shells & Tools ---
+fish
+starship
+zellij
+lazygit
+gitui
+neovim
+fzf
+ripgrep
+fd-find
+htop
+btop
+ufw
+gufw
+
+# --- GUI Desktop and Apps (Custom themes & Native utilities) ---
+# Hyprland itself is built from source by distro/iso-builder/build-hyprland.sh
+# and installed to /usr/local, so we deliberately do NOT pull the apt package.
+# Listed below are its runtime peers and the macOS-UX support tools.
+xdg-desktop-portal-hyprland
+kitty
+swaybg
+swww
+mako-notifier
+waybar
+wlogout
+grim
+slurp
+wl-clipboard
+cliphist
+fuzzel
+brightnessctl
+playerctl
+polkit-kde-agent-1
+qt6ct
+
+# Dev Editors
+# zed - installed via official script
+# jetbrains-toolbox - installed via preinstall script

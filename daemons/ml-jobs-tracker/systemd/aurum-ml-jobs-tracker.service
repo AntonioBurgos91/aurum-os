@@ -1,0 +1,20 @@
+[Unit]
+Description=AurumOS ML jobs tracker (MLflow → D-Bus)
+PartOf=graphical-session.target
+After=graphical-session.target network-online.target
+
+[Service]
+Type=dbus
+BusName=org.aurumos.MlJobsTrackerService
+ExecStart=/usr/local/bin/aurum-ml-jobs-tracker
+Restart=on-failure
+RestartSec=4
+# Read-only daemon. We touch ~/.config/aurum/mlops.toml read-only and hit a
+# network MLflow endpoint; never write to the filesystem.
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=graphical-session.target

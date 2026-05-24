@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# AurumOS aurum-model-pack — thin bash shim over the Python implementation.
+#
+# All real logic lives in aurum-model-pack-helpers.py (sibling file when run
+# from a dev checkout; /usr/local/lib/aurum/aurum-model-pack-helpers.py on a
+# real install — distro/post-install/12-install-model-pack-manager.sh wires
+# both files up).
+#
+# Why a shim instead of just symlinking the Python file? Two reasons:
+#   1. `/usr/local/bin/aurum-model-pack` should not require the user to have
+#      huggingface_hub or pyyaml in their PATH-resolved python (the venv
+#      activation snippet does that, but a bare login shell may not have it).
+#      The shim picks the first usable interpreter.
+#   2. Agent H's GUI launches via QProcess and reads stdout line-by-line; the
+#      shim ensures stdout is line-buffered (`-u`) even under glibc's default
+#      block buffering when stdout is a pipe.
+# ==============================================================================
+
+set -euo pipefail
+
+# Locate the helpers file. In order:
+#   1. $AURUM_MODEL_PACK_HELPERS env override
+#   2. /usr/local/lib/aurum/aurum-model-pack-helpers.py  (installed path)
+#   3. <this script>/aurum-model-pack-helpers.py         (dev checkout path)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HELPERS=""
+if [[ -n "${AURUM_MODEL_PACK_HELPERS:-}" && -f "${AURUM_MODEL_PACK_HELPERS}" ]]; then
+    HELPERS="${AURUM_MODEL_PACK_HELPERS}"
+elif [[ -f /usr/local/lib/aurum/aurum-model-pack-helpers.py ]]; then
+    HELPERS=/usr/local/lib/aurum/aurum-model-pack-helpers.py
+elif [[ -f "${SCRIPT_DIR}/aurum-model-pack-helpers.py" ]]; then
+    HELPERS="${SCRIPT_DIR}/aurum-model-pack-helpers.py"
+else
+    echo "aurum-model-pack: helpers file not found" >&2
+    echo "  looked in: \$AURUM_MODEL_PACK_HELPERS, /usr/local/lib/aurum/, ${SCRIPT_DIR}/" >&2
+    exit 1
+fi
+
+# Pick a python interpreter. Prefer the Aurum DL venv (huggingface_hub +
+# pyyaml are guaranteed there), then system python3.
+PYTHON=""
+for candidate in \
+    "${AURUM_PYTHON:-}" \
+    /opt/aurum-dl-venv/bin/python \
+    /usr/bin/python3 \
+    python3 \
+; do
+    [[ -z "${candidate}" ]] && continue
+    if command -v "${candidate}" >/dev/null 2>&1 || [[ -x "${candidate}" ]]; then
+        PYTHON="${candidate}"
+        break
+    fi
+done
+
+if [[ -z "${PYTHON}" ]]; then
+    echo "aurum-model-pack: no usable python3 interpreter found" >&2
+    exit 1
+fi
+
+# -u: unbuffered stdout/stderr so PROGRESS:/DONE:/ERROR: lines reach Agent H's
+# QProcess immediately. exec to replace this shell so signals (Ctrl+C from the
+# GUI) propagate cleanly.
+exec "${PYTHON}" -u "${HELPERS}" "$@"

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=vLLM Server
+GenericName=High-Throughput LLM Server
+Comment=PagedAttention-based LLM server with AWQ quantization (port 8000)
+TryExec=aurum-launch-vllm
+Exec=aurum-launch-vllm
+Icon=applications-science
+Categories=Development;AI;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-vllm
+Keywords=vllm;llm;serving;inference;awq;qwen;

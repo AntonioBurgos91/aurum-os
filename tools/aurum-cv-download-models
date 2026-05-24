@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# AurumOS — CV/multimodal model fetcher (Agent F / Wave 8)
+#
+# CLI: aurum-cv-download-models [yolo|sam|clip|llava|dinov2|comfyui|all] [--dry-run]
+#
+# Pulls model weights matching the user's profile (/etc/aurum/profile.conf):
+#   yolo     → $AURUM_YOLO_MODEL  (e.g. yolov11s) via `ultralytics`'s YOLO()
+#   sam      → $AURUM_SAM_MODEL   (e.g. sam2-base) via huggingface_hub
+#   clip     → ViT-B-32 OpenCLIP weights (small, useful default)
+#   llava    → $AURUM_LLAVA_MODEL (e.g. llava-7b-int4) via huggingface_hub
+#   dinov2   → facebook/dinov2-base via huggingface_hub
+#   comfyui  → $AURUM_SD_MODEL (e.g. sdxl-turbo-int8) into the ComfyUI
+#              checkpoints folder
+#   all      → all of the above
+#
+# Why this is its own CLI rather than baked into the installer:
+#   * Model weights total 5-30 GB depending on profile — gating them on opt-in
+#     keeps the ISO and first-boot bandwidth budget under control.
+#   * Some weights need a HuggingFace token (gated repos like LLaVA). Surfacing
+#     a friendly error in a CLI is better than a wall of `huggingface_hub`
+#     stack trace mid-install.
+#
+# Exit codes:
+#   0  all requested downloads succeeded (or were already cached)
+#   1  one or more downloads failed
+#   2  invalid usage / unknown target
+#   3  profile config missing (target needs $AURUM_*_MODEL)
+# ==============================================================================
+
+set -uo pipefail
+
+PROFILE_CONF="${PROFILE_CONF:-/etc/aurum/profile.conf}"
+VENV_PATH="${VENV_PATH:-/opt/aurum-dl-venv}"
+COMFYUI_DIR="${COMFYUI_DIR:-/opt/aurum-comfyui}"
+HF_TOKEN_HINT="https://huggingface.co/settings/tokens"
+
+DRY_RUN=0
+TARGET=""
+
+log()  { echo -e "\e[34m[cv-dl]\e[0m $*"; }
+warn() { echo -e "\e[33m[cv-dl]\e[0m $*" >&2; }
+err()  { echo -e "\e[31m[cv-dl]\e[0m $*" >&2; }
+
+usage() {
+    cat <<'EOF'
+aurum-cv-download-models — fetch CV / multimodal model weights for AurumOS
+
+USAGE
+    aurum-cv-download-models <target> [--dry-run]
+
+TARGETS
+    yolo     download YOLOv11 weights ($AURUM_YOLO_MODEL from profile)
+    sam      download SAM2 weights    ($AURUM_SAM_MODEL  from profile)
+    clip     download OpenCLIP ViT-B-32 weights (small default)
+    llava    download LLaVA weights   ($AURUM_LLAVA_MODEL from profile)
+    dinov2   download DINOv2-base weights
+    comfyui  download SDXL/SD checkpoint into the ComfyUI checkpoints folder
+    all      run every target above in sequence
+
+OPTIONS
+    --dry-run        print what would be downloaded; do not fetch
+    -h, --help       this help
+
+ENVIRONMENT
+    HF_TOKEN         (optional) HuggingFace access token for gated repos
+    AURUM_PROFILE    override profile (default: read from /etc/aurum/profile.conf)
+
+EXAMPLES
+    aurum-cv-download-models yolo
+    aurum-cv-download-models all
+    HF_TOKEN=hf_xxx aurum-cv-download-models llava
+EOF
+}
+
+# --- Parse argv ---------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)   usage; exit 0 ;;
+        --dry-run)   DRY_RUN=1; shift ;;
+        yolo|sam|clip|llava|dinov2|comfyui|all)
+            if [[ -n "${TARGET}" ]]; then
+                err "multiple targets specified; pick one (or 'all')"
+                exit 2
+            fi
+            TARGET="$1"; shift ;;
+        *) err "unknown argument: $1"; usage; exit 2 ;;
+    esac
+done
+if [[ -z "${TARGET}" ]]; then
+    err "no target specified"
+    usage
+    exit 2
+fi
+
+# --- Load profile -------------------------------------------------------------
+# shellcheck disable=SC1090
+if [[ -f "${PROFILE_CONF}" ]]; then
+    # shellcheck disable=SC1091
+    source "${PROFILE_CONF}"
+fi
+AURUM_PROFILE="${AURUM_PROFILE:-standard}"
+AURUM_YOLO_MODEL="${AURUM_YOLO_MODEL:-yolov11s}"
+AURUM_SAM_MODEL="${AURUM_SAM_MODEL:-sam2-base}"
+AURUM_LLAVA_MODEL="${AURUM_LLAVA_MODEL:-llava-7b-int4}"
+AURUM_SD_MODEL="${AURUM_SD_MODEL:-sdxl-turbo-int8}"
+
+log "profile: ${AURUM_PROFILE}"
+
+# --- Pick a python ------------------------------------------------------------
+PYBIN="python3"
+if [[ -x "${VENV_PATH}/bin/python" ]]; then
+    PYBIN="${VENV_PATH}/bin/python"
+fi
+
+# --- Resolve symbolic names to HF repo IDs / download URLs --------------------
+# We translate AurumOS-friendly tags (sam2-base, llava-7b-int4) to the actual
+# HuggingFace repo IDs. Keeping the mapping in this CLI rather than in
+# profile.conf means the symbolic names can stay stable across model releases.
+resolve_yolo() {
+    # Ultralytics's YOLO() accepts shorthand like 'yolov11n.pt'.
+    case "${AURUM_YOLO_MODEL}" in
+        yolov11n|yolov11s|yolov11m|yolov11l|yolov11x)
+            echo "${AURUM_YOLO_MODEL}.pt" ;;
+        *) echo "${AURUM_YOLO_MODEL}" ;;
+    esac
+}
+
+resolve_sam_repo() {
+    case "${AURUM_SAM_MODEL}" in
+        sam2-tiny)  echo "facebook/sam2-hiera-tiny" ;;
+        sam2-base)  echo "facebook/sam2-hiera-base-plus" ;;
+        sam2-large) echo "facebook/sam2-hiera-large" ;;
+        *) echo "${AURUM_SAM_MODEL}" ;;
+    esac
+}
+
+resolve_llava_repo() {
+    case "${AURUM_LLAVA_MODEL}" in
+        llava-phi-int4)   echo "xtuner/llava-phi-3-mini-hf" ;;
+        llava-7b-int4)    echo "llava-hf/llava-1.5-7b-hf" ;;
+        llava-13b-int4)   echo "llava-hf/llava-1.5-13b-hf" ;;
+        llava-34b-int4)   echo "llava-hf/llava-v1.6-34b-hf" ;;
+        *) echo "${AURUM_LLAVA_MODEL}" ;;
+    esac
+}
+
+resolve_sd_url() {
+    # ComfyUI expects a .safetensors file in models/checkpoints/. We pin
+    # specific, known-public URLs per symbolic name. Where a checkpoint is
+    # gated (e.g. official SDXL needs a HF login), we use a public mirror.
+    case "${AURUM_SD_MODEL}" in
+        sd15-int8|sd15)
+            echo "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors|v1-5-pruned-emaonly.safetensors"
+            ;;
+        sdxl-turbo-int8|sdxl-turbo)
+            echo "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors|sd_xl_turbo_1.0_fp16.safetensors"
+            ;;
+        sdxl-fp16|sdxl)
+            echo "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors|sd_xl_base_1.0.safetensors"
+            ;;
+        *)
+            # Unknown name — assume the user set AURUM_SD_MODEL to a full URL
+            # of the form URL|FILENAME. If they didn't, surface a clear error.
+            if [[ "${AURUM_SD_MODEL}" == http*"|"* ]]; then
+                echo "${AURUM_SD_MODEL}"
+            else
+                echo ""
+            fi
+            ;;
+    esac
+}
+
+# --- Per-target implementations ----------------------------------------------
+dl_yolo() {
+    local name; name="$(resolve_yolo)"
+    log "yolo: fetching ${name}"
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+        log "  (dry-run; skipping)"
+        return 0
+    fi
+    "${PYBIN}" - <<PY
+from ultralytics import YOLO
+# YOLO() auto-downloads to ~/.cache/torch/hub/checkpoints/ on first instantiation
+# of a known shorthand. Touching it once is enough.
+YOLO("${name}")
+print("yolo: ${name} cached")
+PY
+}
+
+dl_sam() {
+    local repo; repo="$(resolve_sam_repo)"
+    log "sam: fetching ${repo}"
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+        log "  (dry-run; skipping)"
+        return 0
+    fi
+    "${PYBIN}" - <<PY
+from huggingface_hub import snapshot_download
+import os
+token = os.environ.get("HF_TOKEN")
+path = snapshot_download(repo_id="${repo}", token=token)
+print(f"sam: ${repo} cached at {path}")
+PY
+}
+
+dl_clip() {
+    log "clip: fetching laion2b ViT-B-32 OpenCLIP weights"
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+        log "  (dry-run; skipping)"
+        return 0
+    fi
+    "${PYBIN}" - <<'PY'
+import open_clip
+# create_model_and_transforms downloads + caches the pretrained weights.
+model, _, preprocess = open_clip.create_model_and_transforms(
+    "ViT-B-32", pretrained="laion2b_s34b_b79k")
+print("clip: ViT-B-32 / laion2b_s34b_b79k cached")
+PY
+}
+
+dl_llava() {
+    local repo; repo="$(resolve_llava_repo)"
+    log "llava: fetching ${repo}"
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+        log "  (dry-run; skipping)"
+        return 0
+    fi
+    "${PYBIN}" - <<PY
+from huggingface_hub import snapshot_download
+import os
+token = os.environ.get("HF_TOKEN")
+try:
+    path = snapshot_download(repo_id="${repo}", token=token)
+    print(f"llava: ${repo} cached at {path}")
+except Exception as e:
+    if "401" in str(e) or "gated" in str(e).lower():
+        raise SystemExit(
+            "llava: ${repo} is a gated repo. Set HF_TOKEN=<your_token>\\n"
+            "  See: ${HF_TOKEN_HINT}")
+    raise
+PY
+}
+
+dl_dinov2() {
+    log "dinov2: fetching facebook/dinov2-base"
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+        log "  (dry-run; skipping)"
+        return 0
+    fi
+    "${PYBIN}" - <<'PY'
+from huggingface_hub import snapshot_download
+path = snapshot_download(repo_id="facebook/dinov2-base")
+print(f"dinov2: facebook/dinov2-base cached at {path}")
+PY
+}
+
+dl_comfyui() {
+    if [[ ! -d "${COMFYUI_DIR}" ]]; then
+        err "ComfyUI not installed at ${COMFYUI_DIR} (skipped on lite profile)"
+        return 1
+    fi
+    local resolved url filename
+    resolved="$(resolve_sd_url)"
+    if [[ -z "${resolved}" ]]; then
+        err "cannot resolve AURUM_SD_MODEL='${AURUM_SD_MODEL}' to a download URL"
+        err "  set it to one of: sd15, sdxl-turbo, sdxl, or 'URL|filename.safetensors'"
+        return 1
+    fi
+    url="${resolved%|*}"
+    filename="${resolved##*|}"
+    local dest="${COMFYUI_DIR}/models/checkpoints/${filename}"
+
+    log "comfyui: fetching ${AURUM_SD_MODEL} → ${dest}"
+    if [[ -f "${dest}" ]]; then
+        log "  already present (${dest}); skipping"
+        return 0
+    fi
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+        log "  (dry-run; skipping)"
+        return 0
+    fi
+    install -d -m 0755 "$(dirname "${dest}")"
+    # Stream straight to disk; the .safetensors download is multi-GB so a
+    # streamed curl with progress is friendlier than `wget -O` or python.
+    if command -v curl >/dev/null 2>&1; then
+        curl -L --fail --progress-bar -o "${dest}.part" "${url}" \
+            && mv -f "${dest}.part" "${dest}"
+    elif command -v wget >/dev/null 2>&1; then
+        wget --show-progress -O "${dest}.part" "${url}" \
+            && mv -f "${dest}.part" "${dest}"
+    else
+        err "neither curl nor wget on PATH"
+        return 1
+    fi
+}
+
+# --- Dispatch ----------------------------------------------------------------
+run_one() {
+    case "$1" in
+        yolo)    dl_yolo ;;
+        sam)     dl_sam ;;
+        clip)    dl_clip ;;
+        llava)   dl_llava ;;
+        dinov2)  dl_dinov2 ;;
+        comfyui) dl_comfyui ;;
+        *) err "unknown target: $1"; return 2 ;;
+    esac
+}
+
+if [[ "${TARGET}" == "all" ]]; then
+    rc=0
+    for t in yolo sam clip dinov2 llava comfyui; do
+        log "--- ${t} ---"
+        if ! run_one "${t}"; then
+            warn "target '${t}' failed"
+            rc=1
+        fi
+    done
+    exit "${rc}"
+else
+    run_one "${TARGET}"
+    exit $?
+fi

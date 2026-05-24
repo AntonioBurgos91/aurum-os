@@ -1,0 +1,6 @@
+module Aurum.Aqua
+
+singleton Theme       1.0 Theme.qml
+GlassPanel            1.0 GlassPanel.qml
+MetricBadge           1.0 MetricBadge.qml
+TrafficLights         1.0 TrafficLights.qml

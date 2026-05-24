@@ -1,0 +1,28 @@
+# /etc/aurum/profile.conf — TEMPLATE (for reference only; live file is generated)
+#
+# Generated at install time and on every boot by aurum-detect-profile.service
+# (calls /usr/local/bin/aurum-detect-profile → distro/post-install/00-detect-profile.sh).
+#
+# Bash-sourceable. Read by:
+#   - Wave 8 launcher scripts (vLLM, ComfyUI, Unsloth, Continue.dev, …)
+#   - libs/core-services ProfileClient (C++)
+#   - desktop/settings HardwarePanel.qml (via ProfileClient)
+#
+# The values below show what a `standard` (RTX 5060/4060, 8GB VRAM, 32GB RAM)
+# install looks like — i.e. the 80% target.
+
+AURUM_PROFILE=standard
+AURUM_VRAM_MB=8192
+AURUM_RAM_GB=32
+AURUM_GPU_NAME="NVIDIA GeForce RTX 5060"
+AURUM_HAS_CUDA=1
+AURUM_OLLAMA_DEFAULT=qwen2.5-coder:7b
+AURUM_OLLAMA_CHAT=qwen2.5:7b
+AURUM_COMFYUI_FLAGS="--medvram --use-pytorch-cross-attention"
+AURUM_VLLM_DEFAULT_ARGS="--quantization awq --max-model-len 8192 --gpu-memory-utilization 0.85"
+AURUM_UNSLOTH_RECIPE=qlora-4bit-7b
+AURUM_SD_MODEL=sdxl-turbo-int8
+AURUM_WHISPER_MODEL=small
+AURUM_YOLO_MODEL=yolov11s
+AURUM_SAM_MODEL=sam2-base
+AURUM_LLAVA_MODEL=llava-7b-int4

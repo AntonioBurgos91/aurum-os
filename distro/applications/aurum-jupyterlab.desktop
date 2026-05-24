@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=JupyterLab
+GenericName=Notebook IDE
+Comment=Browser-based interactive notebooks (Jupyter, IPython kernels)
+TryExec=jupyter-lab
+Exec=bash -lc "mkdir -p ~/notebooks && cd ~/notebooks && exec jupyter-lab"
+Icon=applications-science
+Categories=Development;Science;Education;DataVisualization;
+Terminal=false
+StartupNotify=false
+Keywords=jupyter;notebook;ipython;python;data;

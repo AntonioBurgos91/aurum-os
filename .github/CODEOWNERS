@@ -1,0 +1,10 @@
+# Default reviewer for everything
+*       @abb
+
+# Subsystem owners
+/daemons/        @abb
+/desktop/        @abb
+/libs/           @abb
+/distro/         @abb
+/docs/           @abb
+/tools/          @abb

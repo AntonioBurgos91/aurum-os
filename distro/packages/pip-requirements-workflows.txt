@@ -1,0 +1,38 @@
+# AurumOS - Modern LLM Workflow Libraries (Wave 8)
+# Installed by: distro/post-install/08-install-llm-workflows.sh
+#
+# These libraries do NOT run models - they orchestrate them. They are all
+# pip-installable, small, pure-Python (or thin wrappers), and work on every
+# AurumOS profile from `lite` to `workstation`. The actual model inference
+# happens via the local Ollama server (default) or LiteLLM proxy on :4000.
+#
+# Pinning policy: floor only. uv resolves the highest compatible set at
+# install time. Floors chosen to match the 2025-2026 API surface (DSPy 2.5
+# moved Signature semantics; Instructor 1.6 added from_litellm; Outlines 0.1
+# rewrote the JSON schema engine; Pydantic-AI shipped its first 0.0.x line).
+
+# --- Declarative prompt programs ---
+dspy-ai>=2.5
+
+# --- Schema-driven structured output ---
+instructor>=1.6
+
+# --- Constrained generation (regex / JSON schema / CFG) ---
+outlines>=0.1
+
+# --- Microsoft Guidance: token-level constrained generation ---
+guidance>=0.2
+
+# --- Pydantic-native agent framework ---
+pydantic-ai>=0.0.14
+
+# --- LiteLLM unified provider gateway ---
+# Already pulled in by Agent B's 07-install-llm-proxy.sh. Listed here so the
+# resolver picks a version that satisfies BOTH instructor (which calls
+# litellm.completion) and the LiteLLM proxy daemon.
+litellm>=1.50
+
+# --- Model Context Protocol SDK (Anthropic) ---
+# Provides `mcp` package with `server`, `client`, and the stdio/SSE transports
+# we use in recipes/mcp/templates/.
+mcp>=0.9

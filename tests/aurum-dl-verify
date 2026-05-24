@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-dl-verify — run AurumOS Deep Learning stack verification.
+#
+# Two phases:
+#   1. dl_smoke.py  — quick "does it import + see the GPU" sanity.
+#   2. dl_bench.py  — matmul / H2D bandwidth benchmark with JSON output.
+#
+# Output:
+#   * Pretty table to stderr (with --quiet, suppressed).
+#   * JSON report at $AURUM_DL_REPORT (default: $XDG_STATE_HOME/aurum-dl-verify.json).
+#
+# Exit codes:
+#   0 — all green.
+#   1 — smoke failed for any framework.
+#   2 — smoke OK but bench surfaced a missing GPU runtime.
+#   3 — internal error (scripts missing, no venv).
+# ==============================================================================
+
+set -euo pipefail
+
+VENV_DEFAULT="/opt/aurum-dl-venv"
+VENV_PATH="${AURUM_DL_VENV:-${VENV_DEFAULT}}"
+
+XDG_STATE_HOME="${XDG_STATE_HOME:-${HOME}/.local/state}"
+REPORT="${AURUM_DL_REPORT:-${XDG_STATE_HOME}/aurum-dl-verify.json}"
+
+# Locate the test scripts. Built/installed under /usr/local/share/aurum-os/tests,
+# but during development they live next to this script.
+candidates_dir() {
+    cat <<EOF
+${AURUM_DL_TESTS_DIR:-}
+/usr/local/share/aurum-os/tests
+/usr/share/aurum-os/tests
+$(dirname "$(readlink -f "$0")")
+EOF
+}
+
+TESTS_DIR=""
+while IFS= read -r d; do
+    if [[ -n "${d}" && -f "${d}/dl_smoke.py" && -f "${d}/dl_bench.py" ]]; then
+        TESTS_DIR="${d}"
+        break
+    fi
+done < <(candidates_dir)
+
+if [[ -z "${TESTS_DIR}" ]]; then
+    echo "[aurum-dl-verify] cannot locate dl_smoke.py / dl_bench.py" >&2
+    exit 3
+fi
+
+if [[ ! -x "${VENV_PATH}/bin/python" ]]; then
+    echo "[aurum-dl-verify] DL venv not found at ${VENV_PATH}" >&2
+    echo "                 set AURUM_DL_VENV or run 02-install-dl-stack.sh first" >&2
+    exit 3
+fi
+
+# Make sure the report dir exists; otherwise dl_bench.py --out blows up on a
+# fresh user account.
+install -d -m 0755 "$(dirname "${REPORT}")"
+
+PY="${VENV_PATH}/bin/python"
+
+echo "▶ smoke tests (${TESTS_DIR}/dl_smoke.py)" >&2
+if ! "${PY}" "${TESTS_DIR}/dl_smoke.py"; then
+    echo "[aurum-dl-verify] smoke FAILED" >&2
+    exit 1
+fi
+
+echo >&2
+echo "▶ benchmark (${TESTS_DIR}/dl_bench.py)" >&2
+if ! "${PY}" "${TESTS_DIR}/dl_bench.py" --text --out "${REPORT}" >/dev/null; then
+    rc=$?
+    if [[ $rc -eq 2 ]]; then
+        echo "[aurum-dl-verify] bench reported missing GPU runtime; report at ${REPORT}" >&2
+        exit 2
+    fi
+    echo "[aurum-dl-verify] bench crashed (rc=$rc)" >&2
+    exit 1
+fi
+
+echo "[aurum-dl-verify] OK; report: ${REPORT}" >&2

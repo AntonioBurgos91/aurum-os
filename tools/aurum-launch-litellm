@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-litellm — start the LiteLLM proxy and open its OpenAPI UI.
+#
+# LiteLLM is the ONE serving binary that runs on every profile (including
+# `lite`): it's an OpenAI-compatible HTTP gateway, no GPU touched.
+#
+# Default config (proxies OpenAI / Anthropic / Ollama) lives at
+# /etc/aurum/litellm-config.yaml; override with $AURUM_LITELLM_CONFIG.
+#
+# Window class: aurum-litellm — picked up by
+# distro/hyprland-fork/conf.d/10-llm-serving.conf to float + size the window.
+# ==============================================================================
+set -euo pipefail
+
+LITELLM_PORT="${LITELLM_PORT:-4000}"
+LITELLM_HOST="${LITELLM_HOST:-0.0.0.0}"
+LITELLM_URL="http://localhost:${LITELLM_PORT}"
+LITELLM_CONFIG="${AURUM_LITELLM_CONFIG:-/etc/aurum/litellm-config.yaml}"
+LITELLM_PID_FILE="${LITELLM_PID_FILE:-/tmp/aurum-litellm.pid}"
+LITELLM_LOG="${LITELLM_LOG:-/tmp/aurum-litellm.log}"
+
+log()  { echo -e "\e[34m[litellm]\e[0m $*"; }
+warn() { echo -e "\e[33m[litellm]\e[0m $*" >&2; }
+die()  { echo -e "\e[31m[litellm]\e[0m $*" >&2; exit 1; }
+
+# Pick the python that has litellm installed: prefer the AurumOS DL venv,
+# fall back to whatever python3 is on PATH (which is where the install script
+# put it on systems without a DL venv).
+if [[ -x /opt/aurum-dl-venv/bin/litellm ]]; then
+    LITELLM_BIN=/opt/aurum-dl-venv/bin/litellm
+elif command -v litellm >/dev/null 2>&1; then
+    LITELLM_BIN="$(command -v litellm)"
+else
+    die "litellm CLI not found.
+Install with:
+  bash /usr/share/aurum-os/post-install/07-install-llm-serving.sh
+or:
+  pip install --user --break-system-packages 'litellm[proxy]==1.55.3'"
+fi
+
+if [[ ! -f "${LITELLM_CONFIG}" ]]; then
+    warn "config file ${LITELLM_CONFIG} not found — proxy will start with no models."
+    warn "Copy the AurumOS default: distro/assets/litellm-config.yaml → ${LITELLM_CONFIG}"
+fi
+
+# Don't double-launch: if the pid file is alive AND the port answers, skip.
+if [[ -f "${LITELLM_PID_FILE}" ]] && kill -0 "$(cat "${LITELLM_PID_FILE}")" 2>/dev/null; then
+    if curl -fsS -o /dev/null --max-time 1 "${LITELLM_URL}/health/liveliness" 2>/dev/null; then
+        log "LiteLLM already running (pid $(cat "${LITELLM_PID_FILE}"))"
+    else
+        warn "stale pid file at ${LITELLM_PID_FILE} — restarting"
+        rm -f "${LITELLM_PID_FILE}"
+    fi
+fi
+
+if [[ ! -f "${LITELLM_PID_FILE}" ]]; then
+    log "launching LiteLLM proxy on :${LITELLM_PORT} (log: ${LITELLM_LOG})..."
+    args=("--host" "${LITELLM_HOST}" "--port" "${LITELLM_PORT}")
+    [[ -f "${LITELLM_CONFIG}" ]] && args+=("--config" "${LITELLM_CONFIG}")
+    # nohup so the proxy survives the parent shell exiting. We can't `exec`
+    # because we still want to launch Falkon below.
+    nohup "${LITELLM_BIN}" "${args[@]}" > "${LITELLM_LOG}" 2>&1 &
+    echo $! > "${LITELLM_PID_FILE}"
+    log "started (pid $(cat "${LITELLM_PID_FILE}"))"
+fi
+
+# Wait briefly for the FastAPI server to bind. /health/liveliness is the
+# OpenAI-shape liveness endpoint LiteLLM exposes regardless of model config.
+for _ in $(seq 1 20); do
+    if curl -fsS -o /dev/null --max-time 1 "${LITELLM_URL}/health/liveliness" 2>/dev/null; then
+        log "LiteLLM is up at ${LITELLM_URL}"
+        break
+    fi
+    sleep 1
+done
+
+# Open the auto-generated OpenAPI / Swagger UI. With --wmclass aurum-litellm
+# Hyprland gives it the float-and-size rule.
+if command -v falkon >/dev/null 2>&1; then
+    log "opening Falkon → ${LITELLM_URL}"
+    exec falkon --wmclass aurum-litellm --no-extensions "${LITELLM_URL}" >/dev/null 2>&1 &
+elif command -v xdg-open >/dev/null 2>&1; then
+    warn "falkon not installed — falling back to xdg-open (no wmclass tagging)"
+    exec xdg-open "${LITELLM_URL}" >/dev/null 2>&1 &
+else
+    log "no browser available — visit ${LITELLM_URL} manually"
+fi

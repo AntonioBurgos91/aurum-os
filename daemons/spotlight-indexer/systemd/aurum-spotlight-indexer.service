@@ -1,0 +1,20 @@
+[Unit]
+Description=AurumOS Spotlight indexer (tantivy + inotify → D-Bus)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.aurumos.SpotlightIndexerService
+ExecStart=/usr/local/bin/aurum-spotlight-indexer
+Restart=on-failure
+RestartSec=4
+# The indexer reads $HOME but writes only to $XDG_CACHE_HOME/aurum/spotlight.
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%C/aurum
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=graphical-session.target

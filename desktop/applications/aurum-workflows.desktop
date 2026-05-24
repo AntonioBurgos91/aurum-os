@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=AurumOS LLM Workflows
+GenericName=LLM Workflow Notebooks
+Comment=Open JupyterLab in the recipes/ folder (DSPy, Instructor, Outlines, Pydantic-AI, MCP)
+TryExec=jupyter-lab
+Exec=bash -lc "cd /usr/share/aurum/recipes 2>/dev/null || cd ~/aurum-recipes 2>/dev/null || cd ~ ; exec jupyter-lab --notebook-dir=. --no-browser=false"
+Icon=applications-development
+Categories=Development;AI;Science;
+Terminal=false
+StartupNotify=false
+StartupWMClass=aurum-workflows
+Keywords=llm;dspy;instructor;outlines;mcp;pydantic-ai;workflows;notebook;

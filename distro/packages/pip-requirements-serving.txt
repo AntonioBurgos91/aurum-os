@@ -1,0 +1,39 @@
+# AurumOS — Modern LLM serving stack (Wave 8 / Agent B)
+# Used by: distro/post-install/07-install-llm-serving.sh
+#
+# Pinning policy mirrors pip-requirements.txt: pin minor where the upstream
+# changes ABI/CLI often enough to break us, otherwise float to the latest
+# patch. uv resolves the highest compatible set at install time.
+#
+# Tier mapping (gated by AURUM_PROFILE in 07-install-llm-serving.sh):
+#   lite                       -> litellm[proxy] only (no GPU needed)
+#   standard|pro|workstation   -> + vllm + sglang  (+ TGI binary out-of-band)
+#
+# Notes on individual pins:
+#   * litellm 1.55.x is the December-2024 LTS-ish line; 1.5x's proxy CLI is
+#     stable and we test recipes against it. Tighten the patch later if a
+#     specific fix is needed.
+#   * vllm 0.6.x is the last line supporting both Ampere (RTX 30xx) and
+#     Blackwell (RTX 50xx) wheels in a single resolve; 0.7+ split CUDA arches
+#     across separate wheels which complicates ISO-time installs. AWQ
+#     quantization (the default the RTX 5060 8 GB path picks) is well-tested
+#     here.
+#   * sglang 0.3.x exposes the v1 router API our recipes assume. 0.4 changed
+#     the runtime kwargs surface (api_route prefix) and would break the
+#     ready-made eval recipes shipped in recipes/serving/.
+#   * TGI (Hugging Face text-generation-inference) is a Rust binary, NOT
+#     installed by pip. The install script fetches the GitHub release tarball
+#     on amd64 only; this file is just the python-side tail.
+
+# --- Universal: API proxy (works on every profile, no GPU needed) ------------
+litellm[proxy]==1.55.3
+
+# --- GPU-only serving runtimes (installed when AURUM_PROFILE != lite) --------
+# vLLM and SGLang are *commented out* here on purpose: the install script
+# decides whether to add them based on the profile, so we never want
+# `pip install -r pip-requirements-serving.txt` to pull them on a lite box.
+# Keeping the pins recorded here (just as comments) so the resolution target
+# is documented and discoverable in one place.
+#
+# vllm==0.6.6.post1
+# sglang==0.3.6

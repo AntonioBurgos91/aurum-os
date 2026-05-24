@@ -1,0 +1,51 @@
+# AurumOS - Python ML Stack (installed via uv pip)
+# Used by: distro/post-install/02-install-dl-stack.sh
+#
+# Pinning policy: floors only, no upper caps (except where compatibility
+# matrices force one). uv resolves the highest compatible set at install time
+# and pins everything in /opt/aurum-dl-venv/.
+
+# --- Core scientific stack ---
+numpy
+scipy
+pandas
+polars
+duckdb
+matplotlib
+seaborn
+scikit-learn
+
+# --- Deep Learning Frameworks (CUDA 12.6 wheels via NVIDIA PyPI mirrors) ---
+# `torch==2.5.1` (Oct 2024) was the previous pin but breaks resolution on
+# Python 3.13 because no torchvision in the cp313 ABI lineage pairs with it.
+# Float to ≥2.7 — the first version with a clean cp313 + torchvision pairing.
+torch>=2.7,<3
+torchvision
+torchaudio
+jax[cuda12]
+flax
+tensorflow[and-cuda]
+
+# --- LLM Inference ---
+vllm
+llama-cpp-python
+triton
+bitsandbytes
+
+# --- MLOps ---
+mlflow
+wandb
+dvc[s3,gdrive]
+hydra-core
+pytorch-lightning
+
+# --- Notebooks ---
+jupyterlab
+marimo
+
+# --- Hubs and Datasets ---
+huggingface_hub[cli]
+kaggle
+
+# --- GPU telemetry (also consumed by aurum-gpu-monitor via D-Bus) ---
+nvidia-ml-py

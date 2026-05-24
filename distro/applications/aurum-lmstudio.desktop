@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LM Studio CLI
+GenericName=Local LLM CLI
+Comment=Manage local models via the LM Studio command-line interface
+TryExec=lms
+Exec=ghostty -e lms
+Icon=applications-science
+Categories=Network;Science;Development;
+Terminal=false
+StartupNotify=false
+Keywords=lmstudio;lms;llm;ai;local;

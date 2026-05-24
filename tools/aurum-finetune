@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-finetune — profile-aware launcher for AurumOS QLoRA recipes
+#
+# Reads /etc/aurum/profile.conf (Agent G writes it during first boot),
+# decides which recipes/unsloth/*.py recipe matches the hardware, then execs
+# the AurumOS DL venv python at it. With no args it just runs the default
+# recipe; --list prints what's available; --recipe NAME picks one explicitly.
+#
+# Examples:
+#   aurum-finetune                 # auto-select based on profile
+#   aurum-finetune --list          # show recipes + which one would run
+#   aurum-finetune --recipe 13b    # force the pro-tier recipe
+#   aurum-finetune --dry-run       # print the command without running
+#   AURUM_FT_DATASET=mlabonne/orpo-dpo-mix-40k aurum-finetune
+# ==============================================================================
+
+set -uo pipefail
+
+PROFILE_CONF="${PROFILE_CONF:-/etc/aurum/profile.conf}"
+VENV_PATH="${VENV_PATH:-/opt/aurum-dl-venv}"
+RECIPES_ROOT="${RECIPES_ROOT:-/usr/share/aurum-os/recipes}"
+
+# Dev fallback: if the system-installed recipes aren't there yet, look next to
+# this script (we're being run from a working tree).
+if [[ ! -d "${RECIPES_ROOT}" ]]; then
+    self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [[ -d "${self_dir}/../recipes" ]]; then
+        RECIPES_ROOT="$(cd "${self_dir}/../recipes" && pwd)"
+    fi
+fi
+
+log()  { echo "[aurum-finetune] $*"; }
+warn() { echo "[aurum-finetune] $*" >&2; }
+die()  { echo "[aurum-finetune] error: $*" >&2; exit 1; }
+
+# --- profile detection --------------------------------------------------------
+AURUM_PROFILE="standard"
+if [[ -f "${PROFILE_CONF}" ]]; then
+    # shellcheck source=/dev/null
+    source "${PROFILE_CONF}" 2>/dev/null || true
+    AURUM_PROFILE="${AURUM_PROFILE:-standard}"
+else
+    warn "${PROFILE_CONF} missing — assuming AURUM_PROFILE=standard"
+fi
+
+# --- recipe table -------------------------------------------------------------
+recipe_for_profile() {
+    case "${1}" in
+        lite)        echo "" ;;
+        standard)    echo "unsloth/qlora_7b_standard.py" ;;
+        pro)         echo "unsloth/qlora_13b_pro.py" ;;
+        workstation) echo "unsloth/qlora_70b_workstation.py" ;;
+        *)           echo "unsloth/qlora_7b_standard.py" ;;
+    esac
+}
+
+recipe_for_alias() {
+    case "${1}" in
+        7b|standard)    echo "unsloth/qlora_7b_standard.py" ;;
+        13b|pro)        echo "unsloth/qlora_13b_pro.py" ;;
+        70b|workstation) echo "unsloth/qlora_70b_workstation.py" ;;
+        axolotl)        echo "axolotl/configs/llama3_8b_lora.yml" ;;
+        *)              echo "" ;;
+    esac
+}
+
+# --- args ---------------------------------------------------------------------
+ACTION="run"
+EXPLICIT_RECIPE=""
+DRY_RUN=0
+PASSTHRU=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            cat <<EOF
+aurum-finetune — profile-aware QLoRA launcher
+
+USAGE:
+    aurum-finetune [OPTIONS] [-- EXTRA_ARGS_TO_PYTHON]
+
+OPTIONS:
+    -l, --list                   list recipes; mark the default for this host
+    -r, --recipe NAME            override auto-select. NAME is one of:
+                                   7b | standard
+                                   13b | pro
+                                   70b | workstation
+                                   axolotl
+    -p, --profile PROFILE        override AURUM_PROFILE for one run
+    -n, --dry-run                print the command without running it
+    -h, --help                   this help
+
+ENVIRONMENT (consumed by recipes/unsloth/*.py):
+    AURUM_FT_MODEL    base model (HF repo id) override
+    AURUM_FT_DATASET  training dataset (HF repo id) override
+    AURUM_FT_OUT      output directory for LoRA adapter
+
+CURRENT:
+    profile  = ${AURUM_PROFILE}
+    recipes  = ${RECIPES_ROOT}
+    venv     = ${VENV_PATH}
+EOF
+            exit 0
+            ;;
+        -l|--list)
+            ACTION="list" ; shift ;;
+        -r|--recipe)
+            EXPLICIT_RECIPE="$2" ; shift 2 ;;
+        -p|--profile)
+            AURUM_PROFILE="$2" ; shift 2 ;;
+        -n|--dry-run)
+            DRY_RUN=1 ; shift ;;
+        --) shift ; PASSTHRU=("$@") ; break ;;
+        *)  PASSTHRU+=("$1") ; shift ;;
+    esac
+done
+
+# --- list mode ----------------------------------------------------------------
+if [[ "${ACTION}" == "list" ]]; then
+    default_recipe="$(recipe_for_profile "${AURUM_PROFILE}")"
+    echo "Profile: ${AURUM_PROFILE}"
+    echo "Recipes available under ${RECIPES_ROOT}:"
+    printf '  %s\n' \
+        "  7b  / standard    -> unsloth/qlora_7b_standard.py        (>=8 GB VRAM)" \
+        "  13b / pro         -> unsloth/qlora_13b_pro.py            (>=12 GB VRAM)" \
+        "  70b / workstation -> unsloth/qlora_70b_workstation.py    (>=24 GB VRAM)" \
+        "  axolotl           -> axolotl/configs/llama3_8b_lora.yml  (>=14 GB VRAM)"
+    if [[ -z "${default_recipe}" ]]; then
+        echo
+        echo "Default for this profile: (none — lite tier; use peft + remote API)"
+    else
+        echo
+        echo "Default for this profile: ${default_recipe}"
+    fi
+    exit 0
+fi
+
+# --- resolve recipe -----------------------------------------------------------
+if [[ -n "${EXPLICIT_RECIPE}" ]]; then
+    RECIPE="$(recipe_for_alias "${EXPLICIT_RECIPE}")"
+    [[ -n "${RECIPE}" ]] || die "unknown recipe alias '${EXPLICIT_RECIPE}' (try --list)"
+else
+    RECIPE="$(recipe_for_profile "${AURUM_PROFILE}")"
+fi
+
+if [[ -z "${RECIPE}" ]]; then
+    log "profile=${AURUM_PROFILE}: local fine-tuning is disabled on this tier."
+    log "use the 'peft' Python library against a remote API endpoint instead."
+    exit 0
+fi
+
+RECIPE_PATH="${RECIPES_ROOT}/${RECIPE}"
+[[ -f "${RECIPE_PATH}" ]] || die "recipe not found: ${RECIPE_PATH}"
+
+# --- build command ------------------------------------------------------------
+if [[ "${RECIPE}" == *.yml ]]; then
+    # Axolotl: use the accelerate launcher, not raw python.
+    LAUNCHER=(accelerate launch -m axolotl.cli.train "${RECIPE_PATH}")
+else
+    PYBIN="${VENV_PATH}/bin/python"
+    [[ -x "${PYBIN}" ]] || PYBIN="$(command -v python3)"
+    [[ -x "${PYBIN}" ]] || die "no python interpreter found"
+    LAUNCHER=("${PYBIN}" "${RECIPE_PATH}")
+fi
+
+CMD=("${LAUNCHER[@]}" "${PASSTHRU[@]}")
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+    echo "Would run: ${CMD[*]}"
+    exit 0
+fi
+
+log "profile=${AURUM_PROFILE} recipe=${RECIPE}"
+exec "${CMD[@]}"

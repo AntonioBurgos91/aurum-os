@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LiteLLM Proxy
+GenericName=LLM API Gateway
+Comment=OpenAI-compatible proxy that fans out to OpenAI/Anthropic/Ollama (port 4000)
+TryExec=aurum-launch-litellm
+Exec=aurum-launch-litellm
+Icon=network-server
+Categories=Development;AI;Network;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-litellm
+Keywords=litellm;openai;anthropic;proxy;llm;gateway;

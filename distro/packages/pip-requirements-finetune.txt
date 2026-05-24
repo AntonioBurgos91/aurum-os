@@ -1,0 +1,38 @@
+# AurumOS — LLM fine-tuning stack (Agent A / Wave 8)
+#
+# Consumed by: distro/post-install/06-install-finetuning.sh
+#
+# This file lists the UNION of packages across all profile tiers. The install
+# script reads /etc/aurum/profile.conf and `pip install`s the subset matching
+# the user's hardware. Pip resolves each name independently so unused entries
+# never hit the wire on lower tiers.
+#
+# Profile gating (see 06-install-finetuning.sh):
+#   lite        -> peft only (API-driven fine-tuning, no local kernels)
+#   standard    -> + unsloth (7B QLoRA on 8 GB VRAM)
+#   pro         -> + axolotl + deepspeed (ZeRO-2)
+#   workstation -> + deepspeed extras (ZeRO-3, full param FT viable on 70B)
+#
+# Pins: as for the quantization file, hard pins because Unsloth chases
+# transformers/torch master and breaks across patch releases.
+
+# --- API-driven (always installed, all profiles) ------------------------------
+peft>=0.14,<1                   # already pulled in by the base DL stack; re-pinned
+                                # here so this file is self-sufficient.
+trl>=0.12,<1                    # SFT / DPO / GRPO trainers, used by every recipe
+
+# --- standard tier and above --------------------------------------------------
+# Unsloth ships extras; `[colab-new]` is the canonical CPU-installable subset
+# (no triton-CUDA at install time, kernels JIT-compiled on first call).
+unsloth[colab-new]==2025.10.7
+torchtune>=0.5,<1               # Native PyTorch recipes; clean install on CPU
+
+# --- pro tier and above -------------------------------------------------------
+axolotl==0.5.2                  # YAML-driven QLoRA/full-FT trainer
+                                # NOTE: skip on lite/standard — see install script
+deepspeed==0.15.4               # ZeRO-2/3; CUDA-less install ok, runtime needs CUDA
+
+# --- Dataset/tokenizer helpers used by recipes/* ------------------------------
+datasets>=3.0
+sentencepiece>=0.2.0
+tiktoken>=0.8

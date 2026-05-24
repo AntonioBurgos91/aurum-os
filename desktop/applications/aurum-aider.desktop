@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Aider
+GenericName=AI Pair Programmer
+Comment=Conversational pair-programming in the terminal (local Ollama by default)
+TryExec=aider
+Exec=xterm -class aurum-aider -title "Aider" -e bash -lc "cd \"${PWD:-$HOME}\" && (command -v aider >/dev/null || { echo 'aider not installed — run: pip install --break-system-packages aider-chat'; exec bash; }); echo 'Tip: set ANTHROPIC_API_KEY or OPENAI_API_KEY to use cloud models. Default is local Ollama.'; echo; exec aider"
+Icon=utilities-terminal
+Categories=Development;TextEditor;
+Terminal=false
+StartupNotify=true
+StartupWMClass=aurum-aider
+Keywords=aider;ai;llm;pair-programming;ollama;coding;

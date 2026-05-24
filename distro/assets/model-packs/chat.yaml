@@ -1,0 +1,36 @@
+# ==============================================================================
+# AurumOS Model Pack: chat
+#
+# General-purpose conversational LLMs served via Ollama. The Wave 7 LiteLLM
+# proxy / Open WebUI already routes to qwen2.5:7b by default; this pack
+# guarantees both models are present and adds llama3.2:3b as a fast CPU
+# fallback for `lite` profile machines.
+#
+# Idempotent: if Ollama already reports the tag (e.g. Wave 7 fetched it),
+# the pull is a no-op.
+# ==============================================================================
+id: chat
+title: Chat Pack
+description: >
+  General-purpose conversational LLMs (qwen2.5:7b for quality, llama3.2:3b
+  for speed). These are the defaults that Wave 7 Open WebUI / LiteLLM proxy
+  expect. Idempotent on Ollama.
+size_bytes: 6442450944        # ~6 GiB combined
+min_profile: lite             # 3B works on CPU; 7B kicks in on standard+
+docs_url: https://docs.aurumos.dev/model-packs/chat
+tags:
+  - llm
+  - chat
+  - ollama
+
+models:
+  - source: ollama
+    name: llama3.2:3b
+    size_bytes: 2019377152    # ~1.88 GiB — fast CPU fallback
+    role: chat-fast
+
+  - source: ollama
+    name: qwen2.5:7b
+    size_bytes: 4683304960    # ~4.36 GiB — default high-quality chat
+    min_profile: standard
+    role: chat-quality

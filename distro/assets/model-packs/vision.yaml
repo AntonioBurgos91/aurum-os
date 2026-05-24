@@ -1,0 +1,52 @@
+# ==============================================================================
+# AurumOS Model Pack: vision
+#
+# General-purpose computer vision models: detection (YOLOv11s), segmentation
+# (SAM 2 base+), self-supervised features (DINOv2), and CLIP for
+# language-conditioned retrieval. Small enough for `lite` (CPU-only) but
+# noticeably faster with any CUDA GPU.
+# ==============================================================================
+id: vision
+title: Vision Pack
+description: >
+  Detection (YOLOv11s), segmentation (SAM 2 base+), DINOv2 features and
+  OpenCLIP for zero-shot retrieval. Drops directly into ~/.cache/aurum/models/
+  so the ultralytics / segment-anything-2 / open_clip_torch APIs find them
+  without further config.
+size_bytes: 3221225472        # ~3 GiB
+min_profile: lite             # CPU inference is slow but works
+docs_url: https://docs.aurumos.dev/model-packs/vision
+tags:
+  - cv
+  - detection
+  - segmentation
+  - clip
+
+models:
+  - source: hf
+    repo: Ultralytics/YOLO11
+    files: ["yolo11s.pt"]
+    dest: ~/.cache/aurum/models/vision/ultralytics/
+    size_bytes: 19500000      # ~19 MB
+    role: detection
+
+  - source: hf
+    repo: facebook/sam2-hiera-base-plus
+    files: ["sam2_hiera_base_plus.pt"]
+    dest: ~/.cache/aurum/models/vision/sam2/
+    size_bytes: 323700000     # ~324 MB
+    role: segmentation
+
+  - source: hf
+    repo: facebook/dinov2-base
+    files: ["pytorch_model.bin", "config.json", "preprocessor_config.json"]
+    dest: ~/.cache/aurum/models/vision/dinov2-base/
+    size_bytes: 346000000     # ~346 MB
+    role: features
+
+  - source: hf
+    repo: laion/CLIP-ViT-B-32-laion2B-s34B-b79K
+    files: ["open_clip_pytorch_model.bin"]
+    dest: ~/.cache/aurum/models/vision/openclip-vit-b-32/
+    size_bytes: 605000000     # ~605 MB
+    role: clip

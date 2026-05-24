@@ -1,0 +1,49 @@
+# ==============================================================================
+# AurumOS Starship Prompt Settings
+# Clean, single-line configuration highlighting Git status and active ML Virtualenvs.
+# ==============================================================================
+
+# Insert a newline before the prompt
+add_newline = true
+
+# Prompt components ordering
+format = """
+$directory\
+$git_branch\
+$git_status\
+$python\
+$container\
+$character\
+"""
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+
+[directory]
+style = "bold cyan"
+truncate_to_repo = true
+truncation_length = 3
+fish_style_pwd_dir_length = 1
+
+[git_branch]
+symbol = " "
+style = "bold magenta"
+format = "on [$symbol$branch]($style) "
+
+[git_status]
+style = "bold red"
+format = "([\\[$all_status$ahead_behind\\]]($style) )"
+
+[python]
+symbol = " "
+style = "bold yellow"
+# Output python virtualenv name (crucial when managing custom uv virtualenvs)
+format = "via [${symbol}${version}(\\($virtualenv\\))]($style) "
+
+[container]
+disabled = false
+symbol = "⬢ "
+format = "[$symbol$name]($style) "
+style = "bold blue"
+EOF

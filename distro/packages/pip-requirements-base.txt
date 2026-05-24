@@ -1,0 +1,52 @@
+# AurumOS — Python DL stack, CPU-installable subset.
+#
+# Use case: dev containers without nvcc, CI smoke runs, and AurumOS targets
+# without an NVIDIA toolkit installed (rare but possible — e.g. AMD-only
+# workstations using rocm.list instead of dl.list).
+#
+# The packages omitted vs pip-requirements.txt (and why):
+#   * vllm           — requires nvcc at wheel-build time
+#   * triton         — wheel availability lags behind cpython releases
+#   * bitsandbytes   — ships CUDA bytecode in its wheel; refuses non-CUDA host
+#
+# Production ISO calls pip-requirements.txt (the full set). The chroot has the
+# CUDA toolkit installed by 01-add-nvidia-repo.sh before this runs.
+
+# --- Core scientific stack ---
+numpy
+scipy
+pandas
+polars
+duckdb
+matplotlib
+seaborn
+scikit-learn
+
+# --- DL frameworks (CPU-or-CUDA wheels, no source build needed) ---
+torch>=2.7,<3
+torchvision
+torchaudio
+jax[cuda12]
+flax
+tensorflow[and-cuda]
+
+# --- LLM Inference (CPU-installable subset) ---
+llama-cpp-python
+
+# --- MLOps ---
+mlflow
+wandb
+dvc[s3,gdrive]
+hydra-core
+pytorch-lightning
+
+# --- Notebooks ---
+jupyterlab
+marimo
+
+# --- Hubs and Datasets ---
+huggingface_hub[cli]
+kaggle
+
+# --- GPU telemetry ---
+nvidia-ml-py

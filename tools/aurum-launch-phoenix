@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-phoenix — start Arize Phoenix in-process and open the UI
+#
+# Phoenix is the lighter-weight cousin of Langfuse. It runs entirely in a
+# single Python process (no Docker, no Postgres), persists traces to SQLite
+# under ~/.phoenix, and is the right answer for `lite` profile users who
+# want OTel traces without a self-hosted stack.
+#
+# We background the python launcher with `nohup … &`, write its pid to
+# /tmp/aurum-phoenix.pid so re-running this script doesn't spawn duplicates,
+# then open Falkon pointed at http://localhost:6007.
+#
+# Window class: aurum-phoenix.
+# ==============================================================================
+set -euo pipefail
+
+PHOENIX_PORT="${PHOENIX_PORT:-6007}"
+PHOENIX_URL="http://localhost:${PHOENIX_PORT}"
+PHOENIX_PID_FILE="${PHOENIX_PID_FILE:-/tmp/aurum-phoenix.pid}"
+PHOENIX_LOG="${PHOENIX_LOG:-/tmp/aurum-phoenix.log}"
+
+log()  { echo -e "\e[34m[phoenix]\e[0m $*"; }
+warn() { echo -e "\e[33m[phoenix]\e[0m $*" >&2; }
+die()  { echo -e "\e[31m[phoenix]\e[0m $*" >&2; exit 1; }
+
+# Pick the python that has Phoenix installed: prefer the AurumOS DL venv.
+if [[ -x /opt/aurum-dl-venv/bin/python ]]; then
+    PY=/opt/aurum-dl-venv/bin/python
+else
+    PY="$(command -v python3 || true)"
+fi
+[[ -n "${PY}" ]] || die "no python3 found"
+
+# Don't double-launch: if an old pid is still alive AND the port answers, skip.
+if [[ -f "${PHOENIX_PID_FILE}" ]] && kill -0 "$(cat "${PHOENIX_PID_FILE}")" 2>/dev/null; then
+    if curl -fsS -o /dev/null --max-time 1 "${PHOENIX_URL}" 2>/dev/null; then
+        log "Phoenix already running (pid $(cat "${PHOENIX_PID_FILE}"))"
+    else
+        warn "stale pid file at ${PHOENIX_PID_FILE} — restarting"
+        rm -f "${PHOENIX_PID_FILE}"
+    fi
+fi
+
+if [[ ! -f "${PHOENIX_PID_FILE}" ]]; then
+    log "launching Phoenix on :${PHOENIX_PORT} (log: ${PHOENIX_LOG})..."
+    # `phoenix.launch_app(port=...)` returns a Session object whose context the
+    # Python process must keep alive for the server to keep serving. We block
+    # in a busy-sleep loop after launching, so backgrounding this whole python
+    # call effectively gives us a persistent server.
+    nohup "${PY}" -c "
+import phoenix as px, time
+sess = px.launch_app(port=${PHOENIX_PORT}, host='0.0.0.0')
+print('phoenix session url:', sess.url, flush=True)
+# Keep the process alive forever; Phoenix's HTTP server runs in a background
+# thread that exits when the main thread exits.
+while True:
+    time.sleep(3600)
+" > "${PHOENIX_LOG}" 2>&1 &
+    echo $! > "${PHOENIX_PID_FILE}"
+    log "started (pid $(cat "${PHOENIX_PID_FILE}"))"
+fi
+
+# Wait briefly for the HTTP server to bind.
+for _ in $(seq 1 15); do
+    if curl -fsS -o /dev/null --max-time 1 "${PHOENIX_URL}" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+
+if command -v falkon >/dev/null 2>&1; then
+    log "opening Falkon → ${PHOENIX_URL}"
+    exec falkon --wmclass aurum-phoenix --no-extensions "${PHOENIX_URL}" >/dev/null 2>&1 &
+elif command -v xdg-open >/dev/null 2>&1; then
+    warn "falkon not installed — falling back to xdg-open (no wmclass tagging)"
+    exec xdg-open "${PHOENIX_URL}" >/dev/null 2>&1 &
+else
+    log "no browser available — visit ${PHOENIX_URL} manually"
+fi

@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-vllm — start a vLLM server, profile-tuned for the local GPU.
+#
+# Reads /etc/aurum/profile.conf to pick:
+#   - the default model           (smaller for `standard`, larger for `pro`)
+#   - $AURUM_VLLM_DEFAULT_ARGS    (AWQ quantization on 8 GB cards, etc.)
+#
+# Hard-blocks on profile=lite because vLLM has no CPU runtime — failing here
+# with a clear message beats the user staring at a CUDA OOM half a minute in.
+#
+# Port: 8000   Window class: aurum-vllm
+# ==============================================================================
+set -euo pipefail
+
+VLLM_PORT="${VLLM_PORT:-8000}"
+VLLM_HOST="${VLLM_HOST:-0.0.0.0}"
+VLLM_URL="http://localhost:${VLLM_PORT}"
+VLLM_PID_FILE="${VLLM_PID_FILE:-/tmp/aurum-vllm.pid}"
+VLLM_LOG="${VLLM_LOG:-/tmp/aurum-vllm.log}"
+PROFILE_CONF="${PROFILE_CONF:-/etc/aurum/profile.conf}"
+
+log()  { echo -e "\e[34m[vllm]\e[0m $*"; }
+warn() { echo -e "\e[33m[vllm]\e[0m $*" >&2; }
+die()  { echo -e "\e[31m[vllm]\e[0m $*" >&2; exit 1; }
+
+# --- Source profile, then enforce the lite-block --------------------------
+AURUM_PROFILE="lite"
+AURUM_VLLM_DEFAULT_ARGS=""
+if [[ -r "${PROFILE_CONF}" ]]; then
+    # shellcheck disable=SC1090
+    source "${PROFILE_CONF}" 2>/dev/null || true
+fi
+if [[ "${AURUM_PROFILE}" == "lite" ]]; then
+    die "vLLM is not supported on profile=lite (no NVIDIA GPU detected).
+
+Alternatives that work on this machine:
+  • aurum-launch-litellm    — OpenAI-shape proxy to OpenAI / Anthropic / Ollama
+  • ollama run llama3.2:3b  — local CPU-friendly LLM (Wave 7 already installed Ollama)
+
+If this machine DOES have an RTX GPU, regenerate the profile:
+  sudo /usr/local/bin/aurum-detect-profile
+  cat /etc/aurum/profile.conf"
+fi
+
+# --- Pick default model based on tier ------------------------------------
+# Tier defaults are AWQ-quantized weights that fit the canonical VRAM budget
+# for each profile:
+#   standard     (8 GB)   Qwen2.5-7B-Instruct-AWQ        ~6 GB resident
+#   pro          (16 GB)  Qwen2.5-14B-Instruct-AWQ       ~10 GB resident
+#   workstation  (24+ GB) Qwen2.5-32B-Instruct-AWQ       ~20 GB resident
+case "${AURUM_PROFILE}" in
+    pro)         DEFAULT_MODEL="Qwen/Qwen2.5-14B-Instruct-AWQ" ;;
+    workstation) DEFAULT_MODEL="Qwen/Qwen2.5-32B-Instruct-AWQ" ;;
+    *)           DEFAULT_MODEL="Qwen/Qwen2.5-7B-Instruct-AWQ" ;;
+esac
+VLLM_MODEL="${VLLM_MODEL:-${DEFAULT_MODEL}}"
+
+# --- Resolve the vllm binary ---------------------------------------------
+if [[ -x /opt/aurum-dl-venv/bin/vllm ]]; then
+    VLLM_BIN=/opt/aurum-dl-venv/bin/vllm
+elif command -v vllm >/dev/null 2>&1; then
+    VLLM_BIN="$(command -v vllm)"
+else
+    die "vllm CLI not found. Install with:
+  bash /usr/share/aurum-os/post-install/07-install-llm-serving.sh"
+fi
+
+# --- Don't double-launch -------------------------------------------------
+if [[ -f "${VLLM_PID_FILE}" ]] && kill -0 "$(cat "${VLLM_PID_FILE}")" 2>/dev/null; then
+    if curl -fsS -o /dev/null --max-time 1 "${VLLM_URL}/health" 2>/dev/null; then
+        log "vLLM already running (pid $(cat "${VLLM_PID_FILE}"))"
+    else
+        warn "stale pid file — restarting"
+        rm -f "${VLLM_PID_FILE}"
+    fi
+fi
+
+if [[ ! -f "${VLLM_PID_FILE}" ]]; then
+    log "launching vLLM (${VLLM_MODEL}) on :${VLLM_PORT}"
+    log "  args: ${AURUM_VLLM_DEFAULT_ARGS}"
+    # We don't quote $AURUM_VLLM_DEFAULT_ARGS because it's a profile-supplied
+    # space-separated string ("--quantization awq --max-model-len 8192 …")
+    # that must word-split. Trusted input — comes from profile.conf, written
+    # by Agent G.
+    # shellcheck disable=SC2086
+    nohup "${VLLM_BIN}" serve "${VLLM_MODEL}" \
+        --host "${VLLM_HOST}" --port "${VLLM_PORT}" \
+        ${AURUM_VLLM_DEFAULT_ARGS} \
+        > "${VLLM_LOG}" 2>&1 &
+    echo $! > "${VLLM_PID_FILE}"
+    log "started (pid $(cat "${VLLM_PID_FILE}")). First-time model download can take several minutes."
+fi
+
+# Wait up to 2 minutes for the model to load (first download is slow).
+for _ in $(seq 1 120); do
+    if curl -fsS -o /dev/null --max-time 1 "${VLLM_URL}/health" 2>/dev/null; then
+        log "vLLM ready at ${VLLM_URL}/v1 (OpenAI-compatible)"
+        break
+    fi
+    sleep 1
+done
+
+# Open Falkon at the server's docs.
+if command -v falkon >/dev/null 2>&1; then
+    log "opening Falkon → ${VLLM_URL}/docs"
+    exec falkon --wmclass aurum-vllm --no-extensions "${VLLM_URL}/docs" >/dev/null 2>&1 &
+elif command -v xdg-open >/dev/null 2>&1; then
+    warn "falkon not installed — falling back to xdg-open (no wmclass tagging)"
+    exec xdg-open "${VLLM_URL}/docs" >/dev/null 2>&1 &
+else
+    log "no browser available — vLLM is up at ${VLLM_URL}/v1"
+fi

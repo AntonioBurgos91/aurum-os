@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aurum-desktop (auto GPU)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["distro/demo/run-preview.sh"],
+      "port": 6080
+    },
+    {
+      "name": "aurum-desktop (NVIDIA)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "GPU_MODE=nvidia bash distro/demo/run-preview.sh"],
+      "port": 6080
+    },
+    {
+      "name": "aurum-desktop (AMD/Intel DRM)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "GPU_MODE=amd-intel bash distro/demo/run-preview.sh"],
+      "port": 6080
+    },
+    {
+      "name": "aurum-desktop (software, no GPU)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "GPU_MODE=software bash distro/demo/run-preview.sh"],
+      "port": 6080
+    }
+  ]
+}

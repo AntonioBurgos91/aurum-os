@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Ollama Chat
+GenericName=Local LLM Chat
+Comment=Open a terminal session with the Ollama CLI (local model runner)
+TryExec=ollama
+Exec=ghostty -e bash -lc "ollama list || true; echo; ollama run \\${OLLAMA_DEFAULT_MODEL:-llama3.1}"
+Icon=utilities-terminal
+Categories=Network;Science;Development;
+Terminal=false
+StartupNotify=false
+Keywords=ollama;llm;chat;ai;local;

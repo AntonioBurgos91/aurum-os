@@ -1,0 +1,47 @@
+// AurumOS default Zellij configuration.
+// Picks the macOS-like keybinds and a status bar layout that matches the
+// menubar's visual rhythm.
+
+keybinds clear-defaults=true {
+    normal {
+        // Cmd-style chords: Super = mod1 (Hyprland remaps Cmd → SUPER → mod1).
+        bind "Ctrl t"  { NewTab; }
+        bind "Ctrl w"  { CloseTab; }
+        bind "Ctrl 1"  { GoToTab 1; }
+        bind "Ctrl 2"  { GoToTab 2; }
+        bind "Ctrl 3"  { GoToTab 3; }
+        bind "Ctrl 4"  { GoToTab 4; }
+        bind "Ctrl d"  { NewPane "Right"; }
+        bind "Ctrl D"  { NewPane "Down"; }
+        bind "Ctrl q"  { Quit; }
+        bind "Alt h"   { MoveFocus "Left"; }
+        bind "Alt j"   { MoveFocus "Down"; }
+        bind "Alt k"   { MoveFocus "Up"; }
+        bind "Alt l"   { MoveFocus "Right"; }
+        bind "Alt z"   { TogglePaneFrames; }
+    }
+}
+
+// macOS-ish dark slate; matches Aurum.Aqua surface/border tokens.
+themes {
+    aurum {
+        bg          "#1c1c1e"
+        fg          "#ffffff"
+        red         "#ff453a"
+        green       "#30d158"
+        yellow      "#ff9f0a"
+        blue        "#0a84ff"
+        magenta     "#bf5af2"
+        orange      "#ff9500"
+        cyan        "#64d2ff"
+        black       "#000000"
+        white       "#ffffff"
+    }
+}
+
+theme           "aurum"
+default_shell   "fish"
+copy_command    "wl-copy"
+mouse_mode      true
+pane_frames     false
+simplified_ui   true

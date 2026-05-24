@@ -1,0 +1,5 @@
+[Icon Theme]
+Name=Aurum-Sequoia
+Comment=AurumOS macOS-Sequoia cursor theme. Inherits from upstream WhiteSur cursors.
+Inherits=WhiteSur-cursors,Adwaita,default
+Example=default

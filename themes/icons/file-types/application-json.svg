@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <path d="M12 4 H44 L56 16 V58 a2 2 0 0 1 -2 2 H12 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 z" fill="#FFFFFF" stroke="#D1D5DB" stroke-width="0.75"/>
+  <path d="M44 4 V14 a2 2 0 0 0 2 2 H56 z" fill="#E5E7EB" stroke="#D1D5DB" stroke-width="0.5"/>
+  <g fill="none" stroke="#16A34A" stroke-width="1.2">
+    <rect x="14" y="14" width="28" height="20" rx="1"/>
+    <line x1="14" y1="22" x2="42" y2="22"/>
+    <line x1="14" y1="28" x2="42" y2="28"/>
+    <line x1="23.3" y1="14" x2="23.3" y2="34"/>
+    <line x1="32.6" y1="14" x2="32.6" y2="34"/>
+  </g>
+  <rect x="14" y="14" width="28" height="8" fill="#16A34A" opacity="0.25"/>
+  <rect x="10" y="38" width="36" height="14" rx="2.5" ry="2.5" fill="#16A34A"/>
+  <text x="28" y="48.4" text-anchor="middle" font-family="-apple-system,SF Pro Display,Inter,Helvetica,Arial,sans-serif" font-size="9" font-weight="700" fill="#FFFFFF" letter-spacing="0.3">JSON</text>
+</svg>

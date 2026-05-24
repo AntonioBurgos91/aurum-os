@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- HTML — code template, HTML orange -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <path d="M12 4 H44 L56 16 V58 a2 2 0 0 1 -2 2 H12 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 z"
+        fill="#FFFFFF" stroke="#D1D5DB" stroke-width="0.75"/>
+  <path d="M44 4 V14 a2 2 0 0 0 2 2 H56 z" fill="#E5E7EB" stroke="#D1D5DB" stroke-width="0.5"/>
+  <g fill="none" stroke="#E34F26" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="20,20 14,26 20,32"/>
+    <polyline points="36,20 42,26 36,32"/>
+    <line x1="32" y1="18" x2="24" y2="34"/>
+  </g>
+  <rect x="10" y="38" width="36" height="14" rx="2.5" ry="2.5" fill="#E34F26"/>
+  <text x="28" y="48.4" text-anchor="middle" font-family="-apple-system,SF Pro Display,Inter,Helvetica,Arial,sans-serif"
+        font-size="9" font-weight="700" fill="#FFFFFF" letter-spacing="0.3">HTML</text>
+</svg>

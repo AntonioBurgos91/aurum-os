@@ -70,11 +70,13 @@ fi
 MCP_PATH="${PROJECT_ROOT}/recipes/mcp/templates/python-server"
 if [[ -d "${MCP_PATH}" ]]; then
     pass "MCP python-server template exists at ${MCP_PATH#${PROJECT_ROOT}/}"
-    # Bonus: directory should contain at least one .py file.
-    if ls "${MCP_PATH}"/*.py >/dev/null 2>&1; then
-        pass "MCP template has at least one .py file"
+    # Bonus: template should ship at least one .py file (recurse — the canonical
+    # layout puts them in a package subdir like aurum_weather/, not the root).
+    py_count=$(find "${MCP_PATH}" -name '*.py' -type f 2>/dev/null | wc -l)
+    if [[ "${py_count}" -gt 0 ]]; then
+        pass "MCP template has ${py_count} .py file(s)"
     else
-        fail "MCP template directory empty (no .py files)"
+        fail "MCP template directory empty (no .py files anywhere under ${MCP_PATH#${PROJECT_ROOT}/})"
     fi
 else
     fail "MCP python-server template missing" "expected at recipes/mcp/templates/python-server/"

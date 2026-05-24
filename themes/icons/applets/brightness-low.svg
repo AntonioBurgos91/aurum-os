@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Brightness — low (rays present but sun core hollow) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none"
+     stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="8" cy="8" r="2.5"/>
+  <line x1="8" y1="1.5" x2="8" y2="3"/>
+  <line x1="8" y1="13" x2="8" y2="14.5"/>
+  <line x1="1.5" y1="8" x2="3" y2="8"/>
+  <line x1="13" y1="8" x2="14.5" y2="8"/>
+</svg>

@@ -1,0 +1,84 @@
+{
+  "generator": "aurum-wallpaper-gen 0.1.0",
+  "note": "PLACEHOLDER MANIFEST. Hashes are blank because the wallpaper renderer has not yet been run in this checkout. Regenerate with `cargo run --release --manifest-path tools/aurum-wallpaper-gen/Cargo.toml -- --output-dir distro/seed/wallpapers/` or the Python fallback (`python3 tools/aurum-wallpaper-gen/_fallback_gen.py --output-dir distro/seed/wallpapers/`). The renderer will overwrite this file with real sha256 digests after producing the 12 PNGs.",
+  "wallpapers": [
+    {
+      "id": "aurum-dawn",
+      "title": "Aurum Dawn",
+      "palette": ["#FFB088", "#FF7D8E", "#9F5FFF"],
+      "files": {
+        "1x": "aurum-sequoia-1.png",
+        "2x": "aurum-sequoia-1@2x.png"
+      },
+      "sha256": {
+        "1x": "",
+        "2x": ""
+      }
+    },
+    {
+      "id": "aurum-forest",
+      "title": "Aurum Forest",
+      "palette": ["#8FBFA0", "#2D9B8E", "#0A2540"],
+      "files": {
+        "1x": "aurum-sequoia-2.png",
+        "2x": "aurum-sequoia-2@2x.png"
+      },
+      "sha256": {
+        "1x": "",
+        "2x": ""
+      }
+    },
+    {
+      "id": "aurum-coastal",
+      "title": "Aurum Coastal",
+      "palette": ["#A4D8F7", "#3DA5D9", "#1B4965"],
+      "files": {
+        "1x": "aurum-sequoia-3.png",
+        "2x": "aurum-sequoia-3@2x.png"
+      },
+      "sha256": {
+        "1x": "",
+        "2x": ""
+      }
+    },
+    {
+      "id": "aurum-sunset",
+      "title": "Aurum Sunset",
+      "palette": ["#FFB347", "#FF6B6B", "#9B59B6"],
+      "files": {
+        "1x": "aurum-sequoia-4.png",
+        "2x": "aurum-sequoia-4@2x.png"
+      },
+      "sha256": {
+        "1x": "",
+        "2x": ""
+      }
+    },
+    {
+      "id": "aurum-night",
+      "title": "Aurum Night",
+      "palette": ["#0F1729", "#1E2A5E", "#6B5B95"],
+      "files": {
+        "1x": "aurum-sequoia-5.png",
+        "2x": "aurum-sequoia-5@2x.png"
+      },
+      "sha256": {
+        "1x": "",
+        "2x": ""
+      }
+    },
+    {
+      "id": "aurum-aurora",
+      "title": "Aurum Aurora",
+      "palette": ["#0F4C5C", "#5FB8B2", "#E9C46A"],
+      "files": {
+        "1x": "aurum-sequoia-6.png",
+        "2x": "aurum-sequoia-6@2x.png"
+      },
+      "sha256": {
+        "1x": "",
+        "2x": ""
+      }
+    }
+  ]
+}

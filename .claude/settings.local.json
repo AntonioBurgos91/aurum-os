@@ -146,7 +146,30 @@
       "Bash(chmod +x tools/aurum-model-pack tools/aurum-model-pack-helpers.py distro/post-install/12-install-model-pack-manager.sh)",
       "Bash(bash tools/aurum-model-pack list)",
       "Bash(bash tools/aurum-model-pack --json list)",
-      "Bash(bash tools/aurum-model-pack info coding)"
+      "Bash(bash tools/aurum-model-pack info coding)",
+      "Bash(patch --dry-run Settings.qml)",
+      "Bash(patch Settings.qml)",
+      "Bash(bash tests/run-wave-8-9-smoke.sh)",
+      "Bash(pip install *)",
+      "Bash(python3 -c \"import dspy, instructor, outlines, guidance, pydantic_ai; from mcp import server; print\\('All 6 workflow libs imported OK'\\)\")",
+      "Bash(python3 -c \"import dspy; print\\('dspy', dspy.__version__\\)\")",
+      "Bash(python3 -c \"import outlines; print\\('outlines', outlines.__version__\\)\")",
+      "Bash(python3 -c \"import guidance; print\\('guidance', guidance.__version__\\)\")",
+      "Bash(python3 -c \"import pydantic_ai; print\\('pydantic_ai', pydantic_ai.__version__\\)\")",
+      "Bash(python3 -c \"import mcp; print\\('mcp', mcp.__version__\\)\")",
+      "Bash(python3 -c \"import outlines; print\\('outlines OK'\\)\")",
+      "Bash(python3 -c \"from mcp import server; print\\('mcp.server OK'\\)\")",
+      "Bash(chmod +x tools/aurum-launch-aider tools/aurum-launch-claude-code)",
+      "Bash(sed -i 's|^Exec=.*|Exec=aurum-launch-aider|' desktop/applications/aurum-aider.desktop)",
+      "Bash(sed -i 's|^Exec=.*|Exec=aurum-launch-claude-code|' desktop/applications/aurum-claude-code.desktop)",
+      "Bash(desktop-file-validate desktop/applications/aurum-aider.desktop)",
+      "Bash(desktop-file-validate desktop/applications/aurum-claude-code.desktop)",
+      "Bash(chmod +x themes/install_fonts.sh)",
+      "Bash(awk '/^\\\\?\\\\?/ {print $2}')",
+      "Bash(awk '/^.M/ {print $2}')",
+      "Bash(awk '{print $2}')",
+      "Bash(awk -F/ '{print $1\"/\"$2}')",
+      "Bash(chmod +x tools/aurum-wallpaper-gen/gen.sh)"
     ]
   }
 }

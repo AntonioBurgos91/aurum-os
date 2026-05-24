@@ -66,6 +66,7 @@ fi
 
 # 2. ComfyUI workflow JSONs.
 CANDIDATES=(
+    "${PROJECT_ROOT}/recipes/comfyui/workflows"
     "${PROJECT_ROOT}/recipes/comfyui"
     "${PROJECT_ROOT}/recipes/cv/comfyui"
     "${PROJECT_ROOT}/distro/assets/comfyui-workflows"

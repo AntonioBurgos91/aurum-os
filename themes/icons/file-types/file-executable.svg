@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aurum executable file — dark terminal chevron, green accent -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <path d="M12 4 H44 L56 16 V58 a2 2 0 0 1 -2 2 H12 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 z"
+        fill="#1c1c1e" stroke="#3c3c40" stroke-width="0.75"/>
+  <path d="M44 4 V14 a2 2 0 0 0 2 2 H56 z" fill="#262628" stroke="#3c3c40" stroke-width="0.5"/>
+  <g fill="none" stroke="#30d158" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="16,20 24,28 16,36"/>
+    <line x1="28" y1="38" x2="42" y2="38"/>
+  </g>
+  <rect x="10" y="46" width="36" height="10" rx="2.2" ry="2.2" fill="#30d158"/>
+  <text x="28" y="53.6" text-anchor="middle" font-family="-apple-system,SF Pro Display,Inter,Helvetica,Arial,sans-serif"
+        font-size="7" font-weight="700" fill="#FFFFFF" letter-spacing="0.3">EXEC</text>
+</svg>

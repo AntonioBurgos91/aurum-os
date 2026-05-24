@@ -211,6 +211,67 @@ customize_system() {
     cp "${BASE_DIR}/tests/idle_bench.sh"      "${CHROOT_DIR}/tmp/aurum/tests/idle_bench.sh"
     cp "${BASE_DIR}/tests/acceptance.sh"      "${CHROOT_DIR}/tmp/aurum/tests/acceptance.sh"
 
+    # Stage Wave 8/9 — hardware-profile detector + SOTA-2026 installers (00, 05–12).
+    # 00 is the profile detector — must run BEFORE 05–12 so they read /etc/aurum/profile.conf.
+    # 05  quantization (bitsandbytes, AutoGPTQ, AutoAWQ)
+    # 06  fine-tuning (Unsloth, TorchTune, Axolotl, DeepSpeed — profile-gated)
+    # 07  LLM serving (vLLM, SGLang, TGI, LiteLLM — gated)
+    # 08  LLM workflows (DSPy, Instructor, Outlines, Pydantic AI, MCP) — all profiles
+    # 09  AI-augmented coding (Continue.dev, Aider, Claude Code CLI)
+    # 10  LLM observability (Langfuse self-hosted, Phoenix, TruLens, Ragas, DeepEval)
+    # 11  CV + multimodal (YOLOv11, SAM2, DINOv2, ComfyUI — gated)
+    # 12  Model Pack Manager (aurum-model-pack CLI + 6 manifests)
+    log_info "Staging Wave 8/9 SOTA-2026 installers + Hyprland drop-ins + model packs..."
+    for f in 00-detect-profile.sh \
+             05-install-quantization.sh 06-install-finetuning.sh \
+             07-install-llm-serving.sh 08-install-llm-workflows.sh \
+             09-install-ai-coding.sh 10-install-observability.sh \
+             11-install-cv-multimodal.sh 12-install-model-pack-manager.sh; do
+        cp "${BASE_DIR}/distro/post-install/${f}" "${CHROOT_DIR}/tmp/aurum/"
+    done
+    # Pinned pip requirements per domain
+    for f in pip-requirements-quant.txt pip-requirements-finetune.txt \
+             pip-requirements-serving.txt pip-requirements-workflows.txt \
+             pip-requirements-coding.txt pip-requirements-observability.txt \
+             pip-requirements-cv.txt; do
+        cp "${BASE_DIR}/distro/packages/${f}" "${CHROOT_DIR}/tmp/aurum/"
+    done
+    # Profile-detect systemd unit (regenerates /etc/aurum/profile.conf on boot)
+    install -d -m 0755 "${CHROOT_DIR}/etc/systemd/system"
+    cp "${BASE_DIR}/daemons/profile-detect/systemd/aurum-detect-profile.service" \
+       "${CHROOT_DIR}/etc/systemd/system/aurum-detect-profile.service"
+    # Hyprland drop-in window rules (one file per Wave 8 agent, no aurum.conf collisions)
+    install -d -m 0755 "${CHROOT_DIR}/etc/aurum/hypr/conf.d"
+    cp "${BASE_DIR}"/distro/hyprland-fork/conf.d/*.conf \
+       "${CHROOT_DIR}/etc/aurum/hypr/conf.d/" 2>/dev/null || true
+    # Model Pack manifests + assets (LiteLLM proxy config, Langfuse compose, Continue.dev template)
+    install -d -m 0755 "${CHROOT_DIR}/etc/aurum/model-packs"
+    cp "${BASE_DIR}"/distro/assets/model-packs/*.yaml \
+       "${CHROOT_DIR}/etc/aurum/model-packs/" 2>/dev/null || true
+    install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/assets"
+    cp "${BASE_DIR}/distro/assets/litellm-config.yaml"        "${CHROOT_DIR}/tmp/aurum/assets/" 2>/dev/null || true
+    cp "${BASE_DIR}/distro/assets/langfuse-docker-compose.yml" "${CHROOT_DIR}/tmp/aurum/assets/" 2>/dev/null || true
+    cp "${BASE_DIR}/distro/assets/langfuse-env.template"       "${CHROOT_DIR}/tmp/aurum/assets/" 2>/dev/null || true
+    cp "${BASE_DIR}/distro/assets/continue-config.json"        "${CHROOT_DIR}/tmp/aurum/assets/" 2>/dev/null || true
+    # Recipes + tools (aurum-finetune, aurum-launch-*, aurum-model-pack, aurum-mcp-template)
+    install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/recipes"
+    rsync -a "${BASE_DIR}/recipes/" "${CHROOT_DIR}/tmp/aurum/recipes/"
+    install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/tools"
+    cp "${BASE_DIR}/tools/aurum-finetune"            "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-launch-vllm"         "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-launch-sglang"       "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-launch-tgi"          "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-launch-litellm"      "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-launch-langfuse"     "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-launch-phoenix"      "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-launch-comfyui"      "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-eval"                "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-mcp-template"        "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-configure-continue.sh" "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-cv-download-models"  "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-model-pack"          "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-model-pack-helpers.py" "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+
     # Stage system-wide .desktop entries for the menu / dock / spotlight.
     log_info "Staging system-wide application entries..."
     install -d -m 0755 "${CHROOT_DIR}/usr/share/applications"
@@ -339,6 +400,56 @@ apt-get install -y --no-install-recommends distinst 2>/dev/null \
 
 # --- Phase 6: boot + idle performance tuning ---------------------------------
 bash /tmp/aurum/04-perf-tune.sh
+
+# --- Wave 8/9: hardware profile + SOTA-2026 stack ----------------------------
+# Order matters: profile detector runs first so every subsequent installer can
+# `source /etc/aurum/profile.conf` to gate its install steps to the user's
+# hardware tier (lite | standard | pro | workstation). The systemd unit
+# regenerates the conf on every boot, so per-tier defaults follow the GPU.
+install -d -m 0755 /etc/aurum
+install -m 0755 /tmp/aurum/00-detect-profile.sh /usr/local/bin/aurum-detect-profile
+bash /usr/local/bin/aurum-detect-profile
+systemctl enable aurum-detect-profile.service || true
+
+# Stage pinned per-domain pip requirements next to the venv (referenced by each
+# installer via $PIP_REQS or hard-coded relative paths).
+install -d -m 0755 /usr/local/share/aurum-os/pip-requirements
+cp /tmp/aurum/pip-requirements-*.txt /usr/local/share/aurum-os/pip-requirements/
+
+# Stage assets (LiteLLM proxy config, Langfuse compose, Continue.dev template)
+install -d -m 0755 /etc/aurum
+cp /tmp/aurum/assets/litellm-config.yaml /etc/aurum/litellm-config.yaml 2>/dev/null || true
+install -d -m 0755 /opt/aurum-langfuse
+cp /tmp/aurum/assets/langfuse-docker-compose.yml /opt/aurum-langfuse/docker-compose.yml 2>/dev/null || true
+cp /tmp/aurum/assets/langfuse-env.template       /opt/aurum-langfuse/.env.template 2>/dev/null || true
+
+# Run the per-domain installers. They are profile-aware — heavy tools (vLLM,
+# ComfyUI, DeepSpeed) auto-skip on lower tiers.
+bash /tmp/aurum/05-install-quantization.sh
+bash /tmp/aurum/06-install-finetuning.sh
+bash /tmp/aurum/07-install-llm-serving.sh
+bash /tmp/aurum/08-install-llm-workflows.sh
+bash /tmp/aurum/09-install-ai-coding.sh
+bash /tmp/aurum/10-install-observability.sh
+bash /tmp/aurum/11-install-cv-multimodal.sh
+bash /tmp/aurum/12-install-model-pack-manager.sh
+
+# Install all SOTA launchers + recipes system-wide.
+install -d -m 0755 /usr/local/bin /usr/local/share/aurum-os/recipes
+for t in aurum-finetune aurum-launch-vllm aurum-launch-sglang aurum-launch-tgi \
+         aurum-launch-litellm aurum-launch-langfuse aurum-launch-phoenix \
+         aurum-launch-comfyui aurum-eval aurum-mcp-template \
+         aurum-configure-continue.sh aurum-cv-download-models aurum-model-pack; do
+    if [ -f "/tmp/aurum/tools/${t}" ]; then
+        install -m 0755 "/tmp/aurum/tools/${t}" "/usr/local/bin/${t%.sh}"
+    fi
+done
+# Python helper for the model-pack CLI (loaded by the bash shim)
+install -d -m 0755 /usr/local/lib/aurum
+[ -f /tmp/aurum/tools/aurum-model-pack-helpers.py ] && \
+    install -m 0644 /tmp/aurum/tools/aurum-model-pack-helpers.py /usr/local/lib/aurum/
+# Recipes go to a shared dir; user copies/symlinks into their projects.
+rsync -a /tmp/aurum/recipes/ /usr/local/share/aurum-os/recipes/
 
 # --- Phase 1: macOS-like desktop stack -----------------------------------------
 # Build the AurumOS Hyprland fork (installs to /usr/local + stages aurum.conf

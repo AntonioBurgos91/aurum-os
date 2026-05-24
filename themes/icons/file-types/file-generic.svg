@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Aurum generic file — blank Sequoia document with subtle lines -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <path d="M12 4 H44 L56 16 V58 a2 2 0 0 1 -2 2 H12 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 z"
+        fill="#FFFFFF" stroke="#D1D5DB" stroke-width="0.75"/>
+  <path d="M44 4 V14 a2 2 0 0 0 2 2 H56 z" fill="#E5E7EB" stroke="#D1D5DB" stroke-width="0.5"/>
+  <g stroke="#C7CBD1" stroke-width="1.4" stroke-linecap="round">
+    <line x1="16" y1="22" x2="40" y2="22"/>
+    <line x1="16" y1="28" x2="40" y2="28"/>
+    <line x1="16" y1="34" x2="34" y2="34"/>
+    <line x1="16" y1="40" x2="40" y2="40"/>
+    <line x1="16" y1="46" x2="30" y2="46"/>
+  </g>
+</svg>

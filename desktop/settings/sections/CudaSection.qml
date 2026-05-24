@@ -1,78 +1,98 @@
+// CudaSection — list & switch between installed CUDA toolkits.
+//
+// Wave 10E styling refactor: the previous free-floating title + repeater is
+// now wrapped in two shared SectionCards so the page rhythm matches the rest
+// of Settings. Bindings on `cudaManager.*` are preserved verbatim; only the
+// outer structure changed.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Aurum.Aqua 1.0
 
 Item {
-    ColumnLayout {
+    ScrollView {
         anchors.fill: parent
-        anchors.margins: 24
-        spacing: 14
+        clip: true
 
-        Text { text: "CUDA"; color: Theme.textPrimary; font.bold: true; font.pixelSize: 20 }
-        Text {
-            text: "Driver: " + (cudaManager.driverVersion || "unknown") +
-                  "    Active (system): " + (cudaManager.systemActive || "—") +
-                  "    Active (user): " + (cudaManager.userActive || "—")
-            color: Theme.textSecondary
-            font.pixelSize: 12
-        }
+        ColumnLayout {
+            width: parent.parent.width - 40
+            x: 20
+            y: 20
+            spacing: Theme.cardSpacing
 
-        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border }
-
-        Repeater {
-            model: cudaManager.toolkits
-            Rectangle {
+            // ---- Overview ------------------------------------------------------
+            SectionCard {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 56
-                radius: Theme.cornerRadius
-                color: Theme.surface
-                border.color: Theme.border
+                title:    "CUDA"
+                subtitle: "Driver: " + (cudaManager.driverVersion || "unknown")
+                        + "    Active (system): " + (cudaManager.systemActive || "—")
+                        + "    Active (user): "   + (cudaManager.userActive   || "—")
+            }
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 14
-                    spacing: 16
+            // ---- Installed toolkits -------------------------------------------
+            SectionCard {
+                Layout.fillWidth: true
+                title:    "Installed toolkits"
+                subtitle: "Detected under /usr/local/cuda-*. Use one for your shell "
+                        + "or set the system-wide default."
 
-                    ColumnLayout {
+                Repeater {
+                    model: cudaManager.toolkits
+                    Rectangle {
                         Layout.fillWidth: true
-                        Text { text: "CUDA " + modelData.version
-                               color: Theme.textPrimary; font.bold: true; font.pixelSize: 14 }
-                        Text { text: modelData.path
-                               color: Theme.textSecondary; font.pixelSize: 11 }
-                    }
+                        Layout.preferredHeight: 56
+                        radius: Theme.cornerRadius
+                        color: Theme.surface
+                        border.color: Theme.border
 
-                    Text {
-                        text: (modelData.isSystemActive ? " system  " : "") +
-                              (modelData.isUserActive   ? " user "   : "")
-                        color: Theme.accent
-                        font.pixelSize: 10
-                        font.bold: true
-                    }
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            spacing: 16
 
-                    Button {
-                        text: "Use for me"
-                        enabled: !modelData.isUserActive
-                        onClicked: cudaManager.setUserActive(modelData.version)
-                    }
-                    Button {
-                        text: "Set system default"
-                        enabled: !modelData.isSystemActive
-                        onClicked: cudaManager.setSystemActive(modelData.version)
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Text { text: "CUDA " + modelData.version
+                                       color: Theme.textPrimary; font.bold: true; font.pixelSize: 14 }
+                                Text { text: modelData.path
+                                       color: Theme.textSecondary; font.pixelSize: 11 }
+                            }
+
+                            Text {
+                                text: (modelData.isSystemActive ? " system  " : "") +
+                                      (modelData.isUserActive   ? " user "   : "")
+                                color: Theme.accent
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+
+                            Button {
+                                text: "Use for me"
+                                enabled: !modelData.isUserActive
+                                onClicked: cudaManager.setUserActive(modelData.version)
+                            }
+                            Button {
+                                text: "Set system default"
+                                enabled: !modelData.isSystemActive
+                                onClicked: cudaManager.setSystemActive(modelData.version)
+                            }
+                        }
                     }
                 }
+
+                Text {
+                    visible: cudaManager.toolkits.length === 0
+                    text: "No /usr/local/cuda-* toolkits found. Install one via apt:\n" +
+                          "    sudo apt install cuda-toolkit-12-6"
+                    color: Theme.warning
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
             }
-        }
 
-        Text {
-            visible: cudaManager.toolkits.length === 0
-            text: "No /usr/local/cuda-* toolkits found. Install one via apt:\n" +
-                  "    sudo apt install cuda-toolkit-12-6"
-            color: Theme.warning
-            font.pixelSize: 12
+            Item { Layout.fillHeight: true }
         }
-
-        Item { Layout.fillHeight: true }
     }
 }

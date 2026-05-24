@@ -1,0 +1,40 @@
+[package]
+name    = "aurum-wallpaper-gen"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Procedural generator for the six default AurumOS wallpapers.
+#
+# Style brief: "macOS Sequoia-class" — smooth radial gradients, soft light-leak
+# highlights, and a 1-2% film-grain noise overlay for tooth. No copyrighted
+# source material; every pixel is synthesised from a deterministic seed so
+# repeated runs produce byte-identical PNGs.
+#
+# This binary is a developer tool only: it is run once to produce the PNGs in
+# distro/seed/wallpapers/, which are then committed to the repo so the ISO
+# builder does not need a Rust toolchain to ship wallpapers. The crate is
+# intentionally not part of any workspace.
+
+[dependencies]
+tiny-skia  = "0.11"
+png        = "0.17"
+rand       = { version = "0.8", features = ["small_rng"] }
+noise      = "0.9"
+clap       = { version = "4", features = ["derive"] }
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2       = "0.10"
+
+[lib]
+name = "aurum_wallpaper_gen"
+path = "src/lib.rs"
+
+[[bin]]
+name = "aurum-wallpaper-gen"
+path = "src/main.rs"
+
+[profile.release]
+lto           = "fat"
+codegen-units = 1
+opt-level     = 3

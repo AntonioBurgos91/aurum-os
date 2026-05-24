@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# aurum-launch-claude-code — wrapper invoked by aurum-claude-code.desktop.
+# See aurum-launch-aider for the rationale (.desktop Exec= can't carry an
+# unescaped `$`-containing compound command, so we shell out to a script).
+set -uo pipefail
+
+CWD="${PWD:-$HOME}"
+
+inner="cd \"${CWD}\""
+inner+=" && if ! command -v claude >/dev/null; then"
+inner+="    echo 'claude not installed — run: npm install -g @anthropic-ai/claude-code'; exec bash;"
+inner+="  fi"
+inner+=" && if [[ -z \"\${ANTHROPIC_API_KEY:-}\" ]]; then"
+inner+="    echo 'WARNING: ANTHROPIC_API_KEY not set; Claude Code will prompt to log in.';"
+inner+="  fi"
+inner+=" && exec claude"
+
+exec xterm -class aurum-claude-code -title "Claude Code" -e bash -lc "${inner}"

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ZIP — archive template, ZIP amber -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <path d="M12 4 H44 L56 16 V58 a2 2 0 0 1 -2 2 H12 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 z"
+        fill="#FFFFFF" stroke="#D1D5DB" stroke-width="0.75"/>
+  <path d="M44 4 V14 a2 2 0 0 0 2 2 H56 z" fill="#E5E7EB" stroke="#D1D5DB" stroke-width="0.5"/>
+  <g fill="#D97706">
+    <rect x="30" y="10" width="4" height="3"/>
+    <rect x="30" y="15" width="4" height="3"/>
+    <rect x="30" y="20" width="4" height="3"/>
+    <rect x="30" y="25" width="4" height="3"/>
+    <rect x="30" y="30" width="4" height="3"/>
+  </g>
+  <rect x="10" y="38" width="36" height="14" rx="2.5" ry="2.5" fill="#D97706"/>
+  <text x="28" y="48.4" text-anchor="middle" font-family="-apple-system,SF Pro Display,Inter,Helvetica,Arial,sans-serif"
+        font-size="9" font-weight="700" fill="#FFFFFF" letter-spacing="0.3">ZIP</text>
+</svg>

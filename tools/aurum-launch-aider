@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# aurum-launch-aider — wrapper invoked by the aurum-aider.desktop entry.
+# Keeps the .desktop Exec= line trivial (just "aurum-launch-aider") so the
+# Exec field passes desktop-file-validate (which forbids unescaped `$` inside
+# quoted command strings).
+#
+# Opens xterm with wmclass=aurum-aider (matched by conf.d/ai-coding.conf so
+# Hyprland floats + centers the window), then runs `aider` in the user's CWD
+# (or $HOME if CWD is unset, e.g. when launched from the application menu).
+set -uo pipefail
+
+CWD="${PWD:-$HOME}"
+
+# Build the inner shell command. Done as a string so xterm -e gets a single
+# argv element (xterm only treats the rest of the arg list as argv to exec()
+# when it's a single word; for a compound command we route through bash -lc).
+inner="cd \"${CWD}\""
+inner+=" && if ! command -v aider >/dev/null; then"
+inner+="    echo 'aider not installed — run: pip install --break-system-packages aider-chat'; exec bash;"
+inner+="  fi"
+inner+=" && echo 'Tip: set ANTHROPIC_API_KEY or OPENAI_API_KEY to use cloud models. Default is local Ollama.'"
+inner+=" && echo"
+inner+=" && exec aider"
+
+exec xterm -class aurum-aider -title "Aider" -e bash -lc "${inner}"

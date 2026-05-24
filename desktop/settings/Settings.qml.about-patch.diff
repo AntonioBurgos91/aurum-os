@@ -1,0 +1,22 @@
+--- a/Settings.qml
++++ b/Settings.qml
+@@ -103,7 +103,8 @@
+         { id: "venv",     title: "Python venvs", icon: "🐍" },
+         { id: "mlops",    title: "MLOps",        icon: "↔" },
+         { id: "hardware", title: "Hardware",     icon: "▣" },
+-        { id: "packs",    title: "Model Packs",  icon: "▤" }
++        { id: "packs",    title: "Model Packs",  icon: "▤" },
++        { id: "about",    title: "About",        icon: "ⓘ" }
+     ]
+
+     RowLayout {
+@@ -175,6 +176,9 @@
+             // Model Packs panel (Wave 9 — Agent H). Steam-Workshop-style
+             // downloader backed by the `aurum-model-pack` CLI.
+             Loader { source: "ModelPacksPanel.qml" }
++            // About panel (Wave 10E — Agent 10E). Distro version, build
++            // date, license, and the detected hardware summary in one card.
++            Loader { source: "AboutPanel.qml" }
+         }
+     }
+ }

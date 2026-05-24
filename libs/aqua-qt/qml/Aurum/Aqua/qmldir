@@ -1,6 +1,20 @@
 module Aurum.Aqua
 
 singleton Theme       1.0 Theme.qml
+singleton IconProvider 1.0 IconProvider.qml
 GlassPanel            1.0 GlassPanel.qml
 MetricBadge           1.0 MetricBadge.qml
 TrafficLights         1.0 TrafficLights.qml
+TrafficLight          1.0 TrafficLight.qml
+WindowChrome          1.0 WindowChrome.qml
+# Preemptively registered by Agent 10A so the qmldir is single-writer.
+# Files are owned by sibling Wave 10 agents:
+#   SectionCard.qml     — Agent 10E
+#   FadeTransition.qml  — Agent 10F
+#   ScaleTransition.qml — Agent 10F (added in-place; sibling of FadeTransition)
+SectionCard           1.0 SectionCard.qml
+FadeTransition        1.0 FadeTransition.qml
+ScaleTransition       1.0 ScaleTransition.qml
+# Added by Agent 10E alongside SectionCard — used by every Settings panel.
+SectionHeader         1.0 SectionHeader.qml
+SettingsRow           1.0 SettingsRow.qml

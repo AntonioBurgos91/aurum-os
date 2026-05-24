@@ -102,7 +102,9 @@ ApplicationWindow {
         { id: "cuda",     title: "CUDA",         icon: "◆" },
         { id: "venv",     title: "Python venvs", icon: "🐍" },
         { id: "mlops",    title: "MLOps",        icon: "↔" },
-        { id: "hardware", title: "Hardware",     icon: "▣" }
+        { id: "hardware", title: "Hardware",     icon: "▣" },
+        { id: "packs",    title: "Model Packs",  icon: "▤" },
+        { id: "about",    title: "About",        icon: "ⓘ" }
     ]
 
     RowLayout {
@@ -171,6 +173,12 @@ ApplicationWindow {
             // Hardware panel lives at the settings root (not sections/) per the
             // Wave 8 profile-detect spec — it surfaces ProfileClient values.
             Loader { source: "HardwarePanel.qml" }
+            // Model Packs panel (Wave 9 — Agent H). Steam-Workshop-style
+            // downloader backed by the `aurum-model-pack` CLI.
+            Loader { source: "ModelPacksPanel.qml" }
+            // About panel (Wave 10E — Agent 10E). Distro version, build
+            // date, license, and the detected hardware summary in one card.
+            Loader { source: "AboutPanel.qml" }
         }
     }
 }

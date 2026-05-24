@@ -83,3 +83,27 @@ qt6ct
 # Dev Editors
 # zed - installed via official script
 # jetbrains-toolbox - installed via preinstall script
+
+# --- Wave 10 Agent C — Typography (fonts-inter + JetBrains Mono) ----------------
+# The Aurum.Aqua Theme singleton declares font.family="Inter" / "Inter Display" /
+# "JetBrains Mono". These apt packages provide the OFL-licensed equivalents of
+# Apple's SF Pro family (which we cannot redistribute). install-fonts.sh runs
+# fc-cache and writes /etc/fonts/conf.d/99-aurum-fonts.conf so sans-serif and
+# monospace resolve to these instead of DejaVu.
+fonts-inter
+fonts-jetbrains-mono
+fonts-dejavu-core
+fontconfig
+
+# --- Wave 10 Agent B — Icon system (gtk-update-icon-cache) ---------------------
+# install-icons.sh runs gtk-update-icon-cache when it lands the file-type SVGs
+# under /usr/share/icons/Aurum-Sequoia/. libgtk-3-bin ships that binary; it is
+# usually pulled in transitively but pinning it explicitly avoids icon-cache
+# refresh failures on minimal installs.
+libgtk-3-bin
+
+# --- Wave 10 Agent D — Wallpapers (cargo runtime + libpng) ---------------------
+# aurum-wallpaper-gen is a Rust+tiny-skia binary. The crate is built ONCE on a
+# developer/CI machine (gen.sh in the crate dir) and the resulting PNGs are
+# committed to distro/seed/wallpapers/. The ISO itself only needs libpng16-16
+# (always present) to display them. NO rust toolchain in the runtime image.

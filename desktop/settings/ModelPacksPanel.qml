@@ -6,12 +6,16 @@
 // `aurum-model-pack` CLI) and shells out to that same CLI for install/remove.
 //
 // Layout, top to bottom:
-//   1. Header: title + "current profile: <tier>" subtitle
-//   2. ListView of pack rows (icon, title/desc, size, profile badge, action)
-//   3. Footer: cache path + total size + Clear cache button
+//   1. Header SectionCard: title + "current profile: <tier>" subtitle
+//   2. Catalog SectionCard wrapping a ListView of pack rows
+//      (icon, title/desc, size, profile badge, action)
+//   3. Cache SectionCard: cache path + total size + Clear cache button
 //
-// Empty-state message kicks in when the manifests directory doesn't exist yet
-// (Agent I hasn't run) so the panel never shows as broken in that window.
+// Wave 10E styling refactor: the header, list, and footer used to be three
+// free-floating blocks at the panel root with ad-hoc spacing; they're now
+// shared SectionCards inside a ScrollView so the panel rhythm matches the
+// rest of Settings. All bindings on `modelPacksModel.*`, the empty-state
+// overlay, and the clearCacheDialog flow are preserved verbatim.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -61,32 +65,42 @@ Item {
 
     // --- Layout -------------------------------------------------------------
 
-    ColumnLayout {
+    ScrollView {
         anchors.fill: parent
-        anchors.margins: 24
-        spacing: 14
+        clip: true
 
-        // ---- Header --------------------------------------------------------
-        Text {
-            text: "Model Packs"
-            color: Theme.textPrimary
-            font.bold: true
-            font.pixelSize: 20
-        }
-        Text {
-            text: "Download AI models tuned for your hardware (current profile: "
-                  + panel.profileLabel(modelPacksModel.currentProfile) + ")"
-            color: Theme.textSecondary
-            font.pixelSize: 12
-            wrapMode: Text.WordWrap
+        ColumnLayout {
+            // ScrollView wraps a single content item; width follows the
+            // ScrollView's viewport. Margin left/right of 20px keeps cards
+            // 20px in from the panel edges per the settings-style guide.
+            width: parent.parent.width - 40
+            x: 20
+            y: 20
+            spacing: Theme.cardSpacing
+
+        // ---- Header SectionCard --------------------------------------------
+        SectionCard {
             Layout.fillWidth: true
+            title:    "Model Packs"
+            subtitle: "Download AI models tuned for your hardware (current profile: "
+                    + panel.profileLabel(modelPacksModel.currentProfile) + ")"
         }
 
-        // ---- Pack list (wrapped in an Item so the empty-state placeholder
-        //      can be a sibling overlay, not a contentItem child of ListView).
+        // ---- Catalog SectionCard wrapping the ListView ---------------------
+        SectionCard {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 460
+            title:    "Catalog"
+            subtitle: modelPacksModel.count + " pack"
+                    + (modelPacksModel.count === 1 ? "" : "s")
+                    + " available"
+
+        // Inner Item so the empty-state placeholder can be a sibling overlay,
+        // not a contentItem child of ListView.
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredHeight: 360
 
         ListView {
             id: packList
@@ -327,31 +341,32 @@ Item {
             }
         }
         } // outer Item wrapping ListView + empty state
+        } // SectionCard (Catalog)
 
-        // ---- Footer (cache controls) --------------------------------------
-        Rectangle {
+        // ---- Footer SectionCard (cache controls) --------------------------
+        SectionCard {
             Layout.fillWidth: true
-            Layout.preferredHeight: 52
-            radius: Theme.cornerRadiusSm
-            color: Theme.surface
-            border.color: Theme.border
+            title:    "Cache"
+            subtitle: "Downloaded models live here. Clear cache will require all "
+                    + "installed packs to re-download on next install."
+
             RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 14
-                anchors.rightMargin: 14
+                Layout.fillWidth: true
                 spacing: 12
                 Text {
-                    text: "Cache: " + modelPacksModel.cachePath()
+                    text: "Path: " + modelPacksModel.cachePath()
                     color: Theme.textSecondary
                     font.pixelSize: 11
                     elide: Text.ElideMiddle
                     Layout.fillWidth: true
+                    verticalAlignment: Text.AlignVCenter
                 }
                 Text {
                     text: panel.cacheSizeHuman + " used"
                     color: Theme.textPrimary
                     font.pixelSize: 11
                     font.bold: true
+                    verticalAlignment: Text.AlignVCenter
                 }
                 Button {
                     text: "Clear cache"
@@ -363,7 +378,10 @@ Item {
                 }
             }
         }
-    }
+
+        Item { Layout.fillHeight: true }
+        } // ColumnLayout
+    } // ScrollView
 
     // --- Dialogs ------------------------------------------------------------
     MessageDialog {

@@ -1,0 +1,33 @@
+# AurumOS Icon Theme — index.theme fragment
+#
+# This file is installed by themes/install_aurum_icons.sh to
+# /usr/share/icons/AurumOS/index.theme. The fdo spec
+# (https://specifications.freedesktop.org/icon-theme-spec/latest/) lets a
+# theme `Inherits=` other themes; the lookup walks the parent chain top-to-
+# bottom, so AurumOS-shipped icons take priority and anything we don't ship
+# falls back to WhiteSur, then Adwaita, then hicolor.
+#
+# Sizes shipped:
+#   16x16/status      — menubar applets (GPU, VRAM, temp, network, clock, ...)
+#   64x64/mimetypes   — file-type icons (Finder + open dialogs)
+#
+# Re-run `gtk-update-icon-cache /usr/share/icons/AurumOS` after editing.
+
+[Icon Theme]
+Name=AurumOS
+Comment=AurumOS Sequoia overlay (file-types + menubar applets)
+Inherits=WhiteSur,Adwaita,hicolor
+Example=folder
+Directories=16x16/status,64x64/mimetypes
+DesktopDefault=48
+DesktopSizes=16,24,32,48,64
+
+[16x16/status]
+Size=16
+Context=Status
+Type=Fixed
+
+[64x64/mimetypes]
+Size=64
+Context=MimeTypes
+Type=Fixed

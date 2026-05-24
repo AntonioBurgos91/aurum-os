@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PyTorch .pth — abstract flame glyph, PyTorch orange -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <path d="M12 4 H44 L56 16 V58 a2 2 0 0 1 -2 2 H12 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 z"
+        fill="#FFFFFF" stroke="#D1D5DB" stroke-width="0.75"/>
+  <path d="M44 4 V14 a2 2 0 0 0 2 2 H56 z" fill="#E5E7EB" stroke="#D1D5DB" stroke-width="0.5"/>
+  <g fill="#EE4C2C">
+    <path d="M28 10 C24 16 20 19 20 25 C20 31 24 35 28 35 C24 32 25 28 28 25 C30 28 33 30 33 33 C33 31 35 30 35 27 C35 22 32 16 28 10 z"/>
+    <circle cx="35" cy="14" r="1.8"/>
+  </g>
+  <rect x="10" y="38" width="36" height="14" rx="2.5" ry="2.5" fill="#EE4C2C"/>
+  <text x="28" y="48.4" text-anchor="middle" font-family="-apple-system,SF Pro Display,Inter,Helvetica,Arial,sans-serif"
+        font-size="9" font-weight="700" fill="#FFFFFF" letter-spacing="0.3">PTH</text>
+</svg>

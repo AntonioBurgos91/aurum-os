@@ -1,3 +1,11 @@
+// MlopsSection — MLflow + Weights & Biases credentials in Settings.
+//
+// Wave 10E styling refactor: the two custom "Rectangle with Grid inside"
+// blocks for MLflow and W&B used to define their own surface/border/padding
+// inline; they're now SectionCards with SettingsRows. Functionally identical:
+// every TextField still two-way-binds to the same `mlopsConfig` property
+// (which writes ~/.config/aurum/mlops.toml on save()), and the Save / Reload
+// buttons retain their highlights and click handlers.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -7,90 +15,59 @@ Item {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 24
-        spacing: 14
+        spacing: 12
 
-        Text { text: "MLOps"; color: Theme.textPrimary; font.bold: true; font.pixelSize: 20 }
-        Text {
-            text: "Saved to ~/.config/aurum/mlops.toml. The aurum-ml-jobs-tracker\n" +
-                  "daemon picks the values up at next start (or systemctl --user reload)."
-            color: Theme.textSecondary
-            font.pixelSize: 12
-            wrapMode: Text.WordWrap
+        // ---- MLflow card --------------------------------------------------
+        SectionCard {
             Layout.fillWidth: true
-        }
+            title:    "MLflow"
+            subtitle: "Saved to ~/.config/aurum/mlops.toml — the aurum-ml-jobs-tracker "
+                    + "daemon picks the values up at next start (systemctl --user reload)."
 
-        Rectangle {
-            Layout.fillWidth: true
-            radius: Theme.cornerRadius
-            color: Theme.surface
-            border.color: Theme.border
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 10
-
-                Text { text: "MLflow"; color: Theme.textPrimary; font.bold: true; font.pixelSize: 14 }
-
-                GridLayout {
-                    columns: 2
-                    columnSpacing: 12
-                    rowSpacing: 6
-                    Layout.fillWidth: true
-
-                    Text { text: "Tracking URI"; color: Theme.textSecondary; font.pixelSize: 12 }
-                    TextField {
-                        text: mlopsConfig.mlflowTrackingUri
-                        Layout.fillWidth: true
-                        onTextChanged: mlopsConfig.mlflowTrackingUri = text
-                    }
-                    Text { text: "Experiment"; color: Theme.textSecondary; font.pixelSize: 12 }
-                    TextField {
-                        text: mlopsConfig.mlflowExperiment
-                        Layout.fillWidth: true
-                        onTextChanged: mlopsConfig.mlflowExperiment = text
-                    }
+            SettingsRow {
+                label: "Tracking URI"
+                control: TextField {
+                    text: mlopsConfig.mlflowTrackingUri
+                    onTextChanged: mlopsConfig.mlflowTrackingUri = text
                 }
+            }
+            SettingsRow {
+                label: "Experiment"
+                control: TextField {
+                    text: mlopsConfig.mlflowExperiment
+                    onTextChanged: mlopsConfig.mlflowExperiment = text
+                }
+                isLast: true
             }
         }
 
-        Rectangle {
+        // ---- Weights & Biases card ---------------------------------------
+        SectionCard {
             Layout.fillWidth: true
-            radius: Theme.cornerRadius
-            color: Theme.surface
-            border.color: Theme.border
+            title: "Weights & Biases"
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 10
-
-                Text { text: "Weights & Biases"; color: Theme.textPrimary; font.bold: true; font.pixelSize: 14 }
-
-                GridLayout {
-                    columns: 2
-                    columnSpacing: 12
-                    rowSpacing: 6
-                    Layout.fillWidth: true
-
-                    Text { text: "API key"; color: Theme.textSecondary; font.pixelSize: 12 }
-                    TextField {
-                        text: mlopsConfig.wandbApiKey
-                        Layout.fillWidth: true
-                        echoMode: TextInput.Password
-                        onTextChanged: mlopsConfig.wandbApiKey = text
-                    }
-                    Text { text: "Entity"; color: Theme.textSecondary; font.pixelSize: 12 }
-                    TextField {
-                        text: mlopsConfig.wandbEntity
-                        Layout.fillWidth: true
-                        onTextChanged: mlopsConfig.wandbEntity = text
-                    }
+            SettingsRow {
+                label: "API key"
+                control: TextField {
+                    text: mlopsConfig.wandbApiKey
+                    echoMode: TextInput.Password
+                    onTextChanged: mlopsConfig.wandbApiKey = text
                 }
+            }
+            SettingsRow {
+                label: "Entity"
+                control: TextField {
+                    text: mlopsConfig.wandbEntity
+                    onTextChanged: mlopsConfig.wandbEntity = text
+                }
+                isLast: true
             }
         }
 
+        // ---- Save / Reload action row (outside the cards, like macOS
+        //      footer buttons in System Settings detail panes).
         RowLayout {
+            Layout.fillWidth: true
             Item { Layout.fillWidth: true }
             Button {
                 text: "Reload"

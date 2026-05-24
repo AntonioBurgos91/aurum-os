@@ -32,3 +32,4 @@ moc_*.cpp
 *.pem
 *.key
 *.env.local
+# Actualización de filtros

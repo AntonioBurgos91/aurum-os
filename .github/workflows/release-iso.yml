@@ -1,0 +1,214 @@
+name: Build & Release AurumOS ISO
+
+# Fires on any pushed tag matching v* (e.g. v0.1.0, v0.1.0-rc1, v1.0.0).
+# Also exposes workflow_dispatch so maintainers can re-run a release manually
+# (e.g. to rebuild a hotfix without bumping the tag).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to build (tag, branch, or SHA). Defaults to the workflow ref.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # required to create the GitHub Release + upload assets
+  packages: read
+
+concurrency:
+  # Never run two ISO builds for the same tag in parallel — they share /tmp paths.
+  group: release-iso-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-iso:
+    name: Build, sign, and publish ISO
+    # Prefer the self-hosted "aurum-builder" runner (label set on the box that
+    # has 50+ GB disk, sudo, and the GPG signing key). Falls back to
+    # ubuntu-latest only if the maintainer overrides the label in a fork.
+    runs-on: [self-hosted, linux, aurum-builder]
+    timeout-minutes: 240   # 4h cap; full ISO build is ~2-3h on the builder host
+
+    steps:
+      - name: Checkout (with LFS + full history for release notes)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+          lfs: true
+
+      - name: Show runner capacity
+        run: |
+          echo "=== Disk ==="
+          df -h /
+          echo "=== Memory ==="
+          free -h
+          echo "=== CPU ==="
+          nproc
+          echo "=== Kernel ==="
+          uname -a
+
+      - name: Install host-side build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              xorriso squashfs-tools rsync wget gpg curl ca-certificates \
+              debootstrap qemu-user-static python3 python3-pip jq
+
+      - name: Resolve VERSION from tag
+        id: version
+        run: |
+          ref_name="${GITHUB_REF_NAME:-}"
+          # When triggered manually with an input ref, fall back to it.
+          if [ -z "${ref_name}" ] || [ "${ref_name}" = "main" ]; then
+            ref_name="${{ github.event.inputs.ref }}"
+          fi
+          # Strip leading 'v' if present.
+          v="${ref_name#v}"
+          if [ -z "${v}" ]; then
+            echo "Could not determine VERSION from ref '${ref_name}'." >&2
+            exit 1
+          fi
+          echo "${v}" > VERSION
+          echo "version=${v}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${v}" >> "${GITHUB_OUTPUT}"
+          echo "iso_name=aurumos-v${v}.iso" >> "${GITHUB_OUTPUT}"
+          echo "Building AurumOS v${v}"
+
+      - name: Build ISO
+        env:
+          AURUM_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sudo --preserve-env=AURUM_VERSION bash distro/iso-builder/build.sh
+          ls -lh build/
+
+      - name: Compute SHA256SUMS
+        id: sha
+        working-directory: build
+        run: |
+          ISO="${{ steps.version.outputs.iso_name }}"
+          sha256sum "${ISO}" > "${ISO}.sha256"
+          # Also produce an aggregate SHA256SUMS for the release page.
+          sha256sum "${ISO}" > SHA256SUMS
+          SUM="$(awk '{print $1}' "${ISO}.sha256")"
+          echo "sha256=${SUM}" >> "${GITHUB_OUTPUT}"
+          echo "ISO SHA256: ${SUM}"
+
+      - name: Import GPG signing key
+        env:
+          AURUM_GPG_PRIVATE_KEY: ${{ secrets.AURUM_GPG_PRIVATE_KEY }}
+          AURUM_GPG_PASSPHRASE: ${{ secrets.AURUM_GPG_PASSPHRASE }}
+        run: |
+          if [ -z "${AURUM_GPG_PRIVATE_KEY:-}" ]; then
+            echo "AURUM_GPG_PRIVATE_KEY secret not set -- skipping signing."
+            echo "AURUM_GPG_SKIP=1" >> "${GITHUB_ENV}"
+            exit 0
+          fi
+          GNUPGHOME="$(mktemp -d)"
+          chmod 700 "${GNUPGHOME}"
+          echo "GNUPGHOME=${GNUPGHOME}" >> "${GITHUB_ENV}"
+          export GNUPGHOME
+          printf '%s' "${AURUM_GPG_PRIVATE_KEY}" | gpg --batch --import
+          KEY_ID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5; exit}')"
+          if [ -z "${KEY_ID}" ]; then
+            echo "GPG import produced no secret key -- aborting." >&2
+            exit 1
+          fi
+          echo "AURUM_GPG_KEY_ID=${KEY_ID}" >> "${GITHUB_ENV}"
+          echo "Imported GPG key: ${KEY_ID}"
+
+      - name: Sign ISO
+        if: ${{ env.AURUM_GPG_SKIP != '1' }}
+        env:
+          AURUM_GPG_PASSPHRASE: ${{ secrets.AURUM_GPG_PASSPHRASE }}
+        run: |
+          bash .github/release-iso/sign.sh "build/${{ steps.version.outputs.iso_name }}"
+
+      - name: Generate release notes
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+          KEY_ID: ${{ env.AURUM_GPG_KEY_ID }}
+          REPO: ${{ github.repository }}
+        run: |
+          PREV="$(git describe --tags --abbrev=0 'HEAD^' 2>/dev/null || echo '')"
+          echo "Previous tag: ${PREV:-<none>}"
+          if [ -n "${PREV}" ]; then
+            COMMITS="$(git log --pretty=format:'- %s (%h)' "${PREV}..HEAD")"
+          else
+            COMMITS="$(git log --pretty=format:'- %s (%h)' -n 50)"
+          fi
+          export COMMITS
+          export DATE="$(date -u +%Y-%m-%d)"
+          export TEMPLATE=".github/release-iso/release-notes-template.md"
+          export OUT="/tmp/release-notes.md"
+          python3 <<'PY'
+          import os, pathlib
+          tpl = pathlib.Path(os.environ["TEMPLATE"]).read_text()
+          repo = os.environ.get("REPO", "")
+          subs = {
+              "VERSION": os.environ.get("VERSION", ""),
+              "DATE": os.environ.get("DATE", ""),
+              "SHA256": os.environ.get("SHA256", ""),
+              "KEY_ID": os.environ.get("KEY_ID", "") or "(unsigned build)",
+              "COMMITS_SINCE_LAST_TAG": os.environ.get("COMMITS", "") or "(no commits found)",
+              "INFERENCE_TPS": "TBD",
+              "TRAINING_SS": "TBD",
+              "BOOT_S": "TBD",
+              "KNOWN_ISSUES": (
+                  f"See https://github.com/{repo}/issues?q=is%3Aissue+is%3Aopen+label%3Aknown-issue"
+                  if repo else "None known at release time."
+              ),
+          }
+          for k, v in subs.items():
+              tpl = tpl.replace("{{" + k + "}}", str(v))
+          pathlib.Path(os.environ["OUT"]).write_text(tpl)
+          print(tpl)
+          PY
+          echo "notes_path=${OUT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Stage release assets
+        id: assets
+        run: |
+          shopt -s nullglob
+          ISO="build/${{ steps.version.outputs.iso_name }}"
+          ASSETS=("${ISO}" "${ISO}.sha256" "build/SHA256SUMS")
+          if [ -f "${ISO}.asc" ]; then
+            ASSETS+=("${ISO}.asc")
+          fi
+          printf '%s\n' "${ASSETS[@]}"
+          {
+            echo 'files<<EOF'
+            printf '%s\n' "${ASSETS[@]}"
+            echo 'EOF'
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Create GitHub Release (draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: AurumOS ${{ steps.version.outputs.tag }}
+          body_path: /tmp/release-notes.md
+          files: ${{ steps.assets.outputs.files }}
+          draft: true
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Discord (optional)
+        if: ${{ success() && env.DISCORD_WEBHOOK != '' }}
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -fsSL -X POST -H 'Content-Type: application/json' \
+            -d "{\"content\": \"New AurumOS draft release: ${{ steps.version.outputs.tag }} -- https://github.com/${{ github.repository }}/releases\"}" \
+            "${DISCORD_WEBHOOK}"
+
+      - name: Clean up GPG keyring
+        if: ${{ always() && env.GNUPGHOME != '' }}
+        run: |
+          rm -rf "${GNUPGHOME}" || true

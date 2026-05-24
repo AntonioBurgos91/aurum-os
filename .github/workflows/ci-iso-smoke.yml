@@ -1,0 +1,170 @@
+name: ISO smoke (PR)
+
+# Fast checks that run on every PR touching the distro/build pipeline.
+# Goal: catch regressions before they reach the slow ~2-3h ISO build.
+on:
+  pull_request:
+    paths:
+      - 'distro/**'
+      - 'tools/aurum-*'
+      - 'themes/**'
+      - '.github/workflows/release-iso.yml'
+      - '.github/workflows/ci-iso-smoke.yml'
+      - '.github/release-iso/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: Shellcheck (warn-only on build.sh, strict on helpers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Shellcheck builder (advisory)
+        run: |
+          # build.sh is large + uses some apt/chroot patterns shellcheck flags;
+          # we want visibility but don't gate the PR on it.
+          shellcheck -S warning distro/iso-builder/build.sh || true
+          shellcheck -S warning distro/iso-builder/build-hyprland.sh || true
+
+      - name: Shellcheck helpers (strict)
+        run: |
+          set +e
+          fail=0
+          shopt -s nullglob globstar
+          targets=(
+            .github/release-iso/sign.sh
+            scripts/aurum-release-helper.sh
+          )
+          for f in distro/post-install/*.sh tools/aurum-* themes/*.sh; do
+            [ -f "$f" ] && targets+=("$f")
+          done
+          for f in "${targets[@]}"; do
+            echo "==> shellcheck $f"
+            shellcheck -S error "$f" || fail=$((fail+1))
+          done
+          exit "$fail"
+        shell: bash
+
+  workflow-lint:
+    name: Lint workflow YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash
+          sudo mv ./actionlint /usr/local/bin/
+
+      - name: Run actionlint
+        run: actionlint -color
+
+      - name: Validate YAML syntax
+        run: |
+          python3 - <<'PY'
+          import sys, pathlib, yaml
+          rc = 0
+          for p in pathlib.Path('.github/workflows').glob('*.yml'):
+              try:
+                  yaml.safe_load(p.read_text())
+                  print(f"OK   {p}")
+              except yaml.YAMLError as e:
+                  print(f"FAIL {p}: {e}")
+                  rc = 1
+          sys.exit(rc)
+          PY
+
+  validate-package-lists:
+    name: Validate apt package lists against Ubuntu 24.04
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check distro/packages/system.list
+        run: |
+          set -euo pipefail
+          docker run --rm -v "${PWD}:/work" -w /work ubuntu:24.04 bash -c '
+            set -e
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            missing=()
+            while IFS= read -r pkg; do
+              # strip inline comments + whitespace
+              pkg="${pkg%%#*}"
+              pkg="$(echo "$pkg" | xargs)"
+              [ -z "$pkg" ] && continue
+              if ! apt-cache show "$pkg" >/dev/null 2>&1; then
+                missing+=("$pkg")
+              fi
+            done < distro/packages/system.list
+            if [ "${#missing[@]}" -gt 0 ]; then
+              echo "Missing packages (not in Ubuntu 24.04 archive):"
+              printf "  - %s\n" "${missing[@]}"
+              exit 1
+            fi
+            echo "All packages resolve."
+          '
+
+  qml-syntax:
+    name: QML lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt6 + qmllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qml6-module-qtquick qt6-declarative-dev-tools || \
+              sudo apt-get install -y qtdeclarative5-dev-tools
+
+      - name: Run qmllint over QML sources
+        run: |
+          set +e
+          fail=0
+          shopt -s nullglob globstar
+          mapfile -t files < <(find desktop libs/aqua-qt -name '*.qml' 2>/dev/null)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No QML files found; skipping."
+            exit 0
+          fi
+          for q in "${files[@]}"; do
+            echo "==> qmllint $q"
+            (qmllint6 "$q" || qmllint "$q") || fail=$((fail+1))
+          done
+          exit "$fail"
+        shell: bash
+
+  stub-iso-build:
+    name: Stub ISO assemble (no chroot)
+    runs-on: ubuntu-latest
+    env:
+      AURUM_STUB_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minimal deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorriso squashfs-tools rsync
+
+      - name: Dry-run build.sh syntax + help
+        run: |
+          bash -n distro/iso-builder/build.sh
+          bash distro/iso-builder/build.sh --help || true
+
+      - name: Assemble fake ISO tree
+        run: |
+          mkdir -p build _stub/iso
+          echo "AurumOS stub $(date -u +%FT%TZ)" > _stub/iso/README
+          xorriso -as mkisofs -V AURUM_STUB -o build/aurumos-stub.iso _stub/iso
+          ls -lh build/aurumos-stub.iso
+          sha256sum build/aurumos-stub.iso

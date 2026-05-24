@@ -1,0 +1,80 @@
+name: Publish apt repo
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build .debs but skip S3 upload'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-publish:
+    name: Build .debs and publish to apt.aurumos.dev
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            dpkg-dev reprepro awscli gnupg \
+            cmake ninja-build pkg-config \
+            qt6-base-dev qt6-declarative-dev qt6-tools-dev \
+            libwayland-dev libxkbcommon-dev libvulkan-dev libwlroots-dev \
+            rustc cargo
+
+      - name: Import GPG signing key
+        env:
+          AURUM_GPG_PRIVATE_KEY: ${{ secrets.AURUM_GPG_PRIVATE_KEY }}
+          AURUM_GPG_PASSPHRASE:  ${{ secrets.AURUM_GPG_PASSPHRASE }}
+        run: |
+          echo "$AURUM_GPG_PRIVATE_KEY" | gpg --batch --import
+          # Export the public counterpart so build-debs.sh can embed it
+          # in the keyring .deb.
+          gpg --armor --export "${{ secrets.AURUM_GPG_KEY_ID }}" > /tmp/aurum-os.asc
+          # Cache the passphrase in the agent so reprepro can sign Release
+          # without prompting.
+          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+
+      - name: Build .debs
+        env:
+          AURUM_VERSION: ${{ github.ref_name }}
+          AURUM_GPG_PUBLIC_KEY: /tmp/aurum-os.asc
+        run: |
+          chmod +x tools/aurum-apt-repo/build-debs.sh
+          tools/aurum-apt-repo/build-debs.sh
+
+      - name: Upload .debs as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurum-debs-${{ github.ref_name }}
+          path: build/debs/*.deb
+          retention-days: 30
+
+      - name: Publish to S3 + invalidate CloudFront
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          AWS_ACCESS_KEY_ID:           ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY:       ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION:                  ${{ secrets.AWS_REGION }}
+          AURUM_GPG_KEY_ID:            ${{ secrets.AURUM_GPG_KEY_ID }}
+          AURUM_GPG_PUBLIC_KEY:        /tmp/aurum-os.asc
+          AURUM_S3_BUCKET:             ${{ secrets.AURUM_S3_BUCKET }}
+          AURUM_CF_DISTRIBUTION_ID:    ${{ secrets.AURUM_CF_DISTRIBUTION_ID }}
+        run: |
+          chmod +x tools/aurum-apt-repo/publish-repo.sh
+          tools/aurum-apt-repo/publish-repo.sh build/debs
+
+      - name: Cleanup GPG agent
+        if: always()
+        run: |
+          gpgconf --kill all || true

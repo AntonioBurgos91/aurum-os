@@ -13,6 +13,7 @@
 set -u
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC2034  # kept for child test_*.sh scripts that source this via env
 PROJECT_ROOT="$(cd "${TESTS_DIR}/.." && pwd)"
 
 JSON=0

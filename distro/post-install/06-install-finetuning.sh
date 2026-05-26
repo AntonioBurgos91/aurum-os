@@ -31,9 +31,9 @@ warn() { echo -e "\e[33m[finetune]\e[0m $*" >&2; }
 err()  { echo -e "\e[31m[finetune]\e[0m $*" >&2; }
 
 # --- resolve profile ----------------------------------------------------------
-# shellcheck source=/dev/null
 AURUM_PROFILE="standard"
 if [[ -f "${PROFILE_CONF}" ]]; then
+    # shellcheck source=/dev/null
     source "${PROFILE_CONF}" 2>/dev/null || true
     AURUM_PROFILE="${AURUM_PROFILE:-standard}"
 else

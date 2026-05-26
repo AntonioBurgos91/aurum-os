@@ -41,7 +41,8 @@ run() {
     if (( DRY_RUN )); then
         echo "  + $*"
     else
-        eval "$@"
+        # Pass args directly without eval — preserves arrays (SC2294 fix)
+        "$@"
     fi
 }
 
@@ -68,7 +69,7 @@ regenerate_file_types() {
     if [[ -x "${gen}" || -f "${gen}" ]]; then
         if command -v python3 >/dev/null 2>&1; then
             log "regenerating file-type icons from manifest"
-            run "python3 '${gen}'"
+            run python3 "${gen}"
         else
             warn "python3 not found; using pre-committed SVGs as-is"
         fi
@@ -115,32 +116,32 @@ INDEX
 
 deposit_assets() {
     log "depositing assets under ${DEST_ROOT}"
-    run "mkdir -p '${DEST_ROOT}/file-types' '${DEST_ROOT}/applets'"
+    run mkdir -p "${DEST_ROOT}/file-types" "${DEST_ROOT}/applets"
     # Only ship the rendered SVGs to the system tree — templates, manifest and
     # generator script stay in-source.
-    run "find '${SRC_ROOT}/file-types' -maxdepth 1 -name '*.svg' -exec cp -t '${DEST_ROOT}/file-types' {} +"
-    run "cp '${SRC_ROOT}/file-types/README.md' '${DEST_ROOT}/file-types/' 2>/dev/null || true"
-    run "find '${SRC_ROOT}/applets' -maxdepth 1 -name '*.svg' -exec cp -t '${DEST_ROOT}/applets' {} +"
+    run find "${SRC_ROOT}/file-types" -maxdepth 1 -name '*.svg' -exec cp -t "${DEST_ROOT}/file-types" {} +
+    run cp "${SRC_ROOT}/file-types/README.md" "${DEST_ROOT}/file-types/" 2>/dev/null || true
+    run find "${SRC_ROOT}/applets" -maxdepth 1 -name '*.svg' -exec cp -t "${DEST_ROOT}/applets" {} +
 }
 
 deposit_cursors() {
     local cursor_src="${SRC_ROOT}/cursors/Aurum-Sequoia"
     log "depositing cursor theme inheritance shim"
-    run "mkdir -p '${DEST_ROOT}/cursors'"
-    run "cp '${cursor_src}/index.theme' '${DEST_ROOT}/index.theme.cursors' 2>/dev/null || true"
-    run "cp '${cursor_src}/cursor.theme' '${DEST_ROOT}/cursor.theme'"
+    run mkdir -p "${DEST_ROOT}/cursors"
+    run cp "${cursor_src}/index.theme" "${DEST_ROOT}/index.theme.cursors" 2>/dev/null || true
+    run cp "${cursor_src}/cursor.theme" "${DEST_ROOT}/cursor.theme"
     # Keep an aliased copy at the canonical cursor location so XCursor's
     # default lookup path finds it without help from gtk-3.0/settings.ini.
-    run "cp -r '${cursor_src}' '${ICON_DIR}/Aurum-Sequoia-cursors' 2>/dev/null || true"
+    run cp -r "${cursor_src}" "${ICON_DIR}/Aurum-Sequoia-cursors" 2>/dev/null || true
     # Register as a system cursor alternative.
-    run "update-alternatives --install /usr/share/icons/default/index.theme \
-            x-cursor-theme '${DEST_ROOT}/cursor.theme' 110 || true"
+    run update-alternatives --install /usr/share/icons/default/index.theme \
+            x-cursor-theme "${DEST_ROOT}/cursor.theme" 110 || true
 }
 
 refresh_cache() {
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
         log "refreshing gtk-icon-cache"
-        run "gtk-update-icon-cache --quiet --force '${DEST_ROOT}' || true"
+        run gtk-update-icon-cache --quiet --force "${DEST_ROOT}" || true
     else
         warn "gtk-update-icon-cache not installed; cache refresh skipped"
     fi

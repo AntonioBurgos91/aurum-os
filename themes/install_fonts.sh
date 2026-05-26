@@ -45,7 +45,8 @@ run() {
         printf '[dry-run] %s\n' "$*"
     else
         printf '[run]     %s\n' "$*"
-        eval "$@"
+        # Pass args directly without eval — preserves quoting + arrays (SC2294 fix)
+        "$@"
     fi
 }
 
@@ -68,7 +69,7 @@ need_tool curl
 need_tool unzip
 need_tool fc-cache
 
-run "install -d -m 755 ${CACHE_DIR} ${INSTALL_ROOT} ${INTER_DIR} ${JBM_DIR}"
+run install -d -m 755 "${CACHE_DIR}" "${INSTALL_ROOT}" "${INTER_DIR}" "${JBM_DIR}"
 
 # ───────────────────────── Inter ──────────────────────────────────────────
 INTER_ZIP="${CACHE_DIR}/Inter-${INTER_VERSION}.zip"
@@ -76,7 +77,7 @@ if [[ -s "${INTER_ZIP}" ]]; then
     echo "==> Inter ${INTER_VERSION} already cached at ${INTER_ZIP}"
 else
     echo "==> Fetching Inter ${INTER_VERSION}"
-    run "curl -fsSL --retry 3 -o ${INTER_ZIP} ${INTER_URL}"
+    run curl -fsSL --retry 3 -o "${INTER_ZIP}" "${INTER_URL}"
 fi
 
 if find "${INTER_DIR}" -maxdepth 2 -name '*.ttf' -print -quit | grep -q .; then
@@ -85,9 +86,9 @@ else
     echo "==> Extracting Inter to ${INTER_DIR}"
     # The zip layout shifts slightly across releases — match both modern
     # ("Inter Desktop/") and legacy ("Inter Desktop/Inter-roman.var.ttf") layouts.
-    run "unzip -o -j -q ${INTER_ZIP} 'Inter Desktop/*.ttf' 'Inter Desktop/*.otf' -d ${INTER_DIR} || true"
+    run unzip -o -j -q "${INTER_ZIP}" 'Inter Desktop/*.ttf' 'Inter Desktop/*.otf' -d "${INTER_DIR}" || true
     # Variable fonts (newer releases) live at the zip root in some builds:
-    run "unzip -o -j -q ${INTER_ZIP} 'Inter*.var.ttf' -d ${INTER_DIR} || true"
+    run unzip -o -j -q "${INTER_ZIP}" 'Inter*.var.ttf' -d "${INTER_DIR}" || true
 fi
 
 # ───────────────────────── JetBrains Mono ─────────────────────────────────
@@ -96,20 +97,20 @@ if [[ -s "${JBM_ZIP}" ]]; then
     echo "==> JetBrains Mono ${JBM_VERSION} already cached at ${JBM_ZIP}"
 else
     echo "==> Fetching JetBrains Mono ${JBM_VERSION}"
-    run "curl -fsSL --retry 3 -o ${JBM_ZIP} ${JBM_URL}"
+    run curl -fsSL --retry 3 -o "${JBM_ZIP}" "${JBM_URL}"
 fi
 
 if find "${JBM_DIR}" -maxdepth 2 -name '*.ttf' -print -quit | grep -q .; then
     echo "    JetBrains Mono already extracted in ${JBM_DIR} — skipping"
 else
     echo "==> Extracting JetBrains Mono to ${JBM_DIR}"
-    run "unzip -o -j -q ${JBM_ZIP} 'fonts/ttf/*.ttf' -d ${JBM_DIR}"
-    run "unzip -o -j -q ${JBM_ZIP} 'fonts/variable/*.ttf' -d ${JBM_DIR} || true"
+    run unzip -o -j -q "${JBM_ZIP}" 'fonts/ttf/*.ttf' -d "${JBM_DIR}"
+    run unzip -o -j -q "${JBM_ZIP}" 'fonts/variable/*.ttf' -d "${JBM_DIR}" || true
 fi
 
 # ───────────────────────── refresh cache ──────────────────────────────────
 echo "==> Refreshing fontconfig cache"
-run "fc-cache -f ${INSTALL_ROOT}"
+run fc-cache -f "${INSTALL_ROOT}"
 
 if [[ $DRY_RUN -eq 0 ]]; then
     echo "==> Verifying installation"

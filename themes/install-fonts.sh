@@ -39,7 +39,8 @@ run() {
         echo "[dry-run] $*"
     else
         echo "[run]     $*"
-        eval "$@"
+        # Pass args directly without eval — preserves arrays (SC2294 fix)
+        "$@"
     fi
 }
 
@@ -53,20 +54,23 @@ require_root() {
 require_root
 
 echo "==> Installing apt font packages"
-run "apt-get update -qq"
-run "apt-get install -y --no-install-recommends fonts-inter fonts-jetbrains-mono unzip curl"
+run apt-get update -qq
+run apt-get install -y --no-install-recommends fonts-inter fonts-jetbrains-mono unzip curl
 
 echo "==> Ensuring Aurum font dir exists: ${FONT_DIR}"
-run "install -d -m 755 ${FONT_DIR}"
+run install -d -m 755 "${FONT_DIR}"
 
 # Inter Display is shipped inside the standard Inter zip; some distros split it
 # off and some do not.  Check fontconfig — if "Inter Display" is unknown, fetch.
 echo "==> Checking for Inter Display"
 if ! fc-list 2>/dev/null | grep -qi "Inter Display"; then
     echo "    Inter Display not found; downloading from upstream OFL release"
-    run "curl -fsSL -o ${INTER_DISPLAY_ARCHIVE} \"\$(curl -fsSL ${INTER_RELEASE_URL} | grep -Eo 'https://[^\"]+Inter-[0-9.]+\\.zip' | head -1)\""
-    run "unzip -o -j ${INTER_DISPLAY_ARCHIVE} 'Inter Desktop/Inter Display-*.ttf' -d ${FONT_DIR}"
-    run "rm -f ${INTER_DISPLAY_ARCHIVE}"
+    # Resolve the latest Inter zip URL first, then download separately so eval
+    # isn't needed for the array-style run() helper.
+    INTER_ZIP_URL=$(curl -fsSL "${INTER_RELEASE_URL}" | grep -Eo 'https://[^"]+Inter-[0-9.]+\.zip' | head -1)
+    run curl -fsSL -o "${INTER_DISPLAY_ARCHIVE}" "${INTER_ZIP_URL}"
+    run unzip -o -j "${INTER_DISPLAY_ARCHIVE}" 'Inter Desktop/Inter Display-*.ttf' -d "${FONT_DIR}"
+    run rm -f "${INTER_DISPLAY_ARCHIVE}"
 else
     echo "    Inter Display already present — skipping download"
 fi
@@ -76,10 +80,10 @@ if [[ ! -f "${CONF_SRC}" ]]; then
     echo "error: missing source ${CONF_SRC}" >&2
     exit 1
 fi
-run "install -m 644 ${CONF_SRC} ${CONF_DST}"
+run install -m 644 "${CONF_SRC}" "${CONF_DST}"
 
 echo "==> Refreshing font cache"
-run "fc-cache -fv"
+run fc-cache -fv
 
 echo "==> Verifying fontconfig resolves to Inter"
 if [[ $DRY_RUN -eq 0 ]]; then

@@ -1,8 +1,7 @@
 name: Auto Format
 
-# Manually-triggered workflow that runs formatters on the entire codebase
-# and commits the changes back to main. Use this to fix CI lint failures
-# without touching anything in your local environment.
+# Triggered manually OR when this workflow file changes.
+# Runs formatters on the entire codebase and commits changes back to main.
 
 on:
   workflow_dispatch:
@@ -19,6 +18,12 @@ on:
         description: "Generate shellcheck report (non-blocking, for review)"
         type: boolean
         default: true
+  # Auto-runs whenever this workflow file is modified, so changes to the
+  # workflow itself bootstrap a formatting pass without a manual click.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/auto-format.yml"
 
 permissions:
   contents: write
@@ -30,19 +35,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Required so the bot can push back to the branch
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       # ---------- Rust ----------
       - name: Install Rust toolchain
-        if: ${{ inputs.run_rust }}
+        if: ${{ github.event_name == 'push' || inputs.run_rust }}
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
 
       - name: Run cargo fmt on all crates
-        if: ${{ inputs.run_rust }}
+        if: ${{ github.event_name == 'push' || inputs.run_rust }}
         run: |
           set -e
           for d in daemons/gpu-monitor daemons/spotlight-indexer daemons/ml-jobs-tracker tools/aurum-mockup; do
@@ -56,26 +60,25 @@ jobs:
 
       # ---------- C++ ----------
       - name: Install clang-format
-        if: ${{ inputs.run_cpp }}
+        if: ${{ github.event_name == 'push' || inputs.run_cpp }}
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-format
 
       - name: Run clang-format on desktop/ and libs/
-        if: ${{ inputs.run_cpp }}
+        if: ${{ github.event_name == 'push' || inputs.run_cpp }}
         run: |
           set -e
-          # Use -print0 / xargs -0 to handle filenames with spaces robustly
           find desktop libs \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" \) -type f -print0 \
             | xargs -0 -r clang-format -i
 
       # ---------- Shellcheck (report only, does not fix) ----------
       - name: Install shellcheck
-        if: ${{ inputs.run_shellcheck_report }}
+        if: ${{ github.event_name == 'push' || inputs.run_shellcheck_report }}
         run: sudo apt-get install -y shellcheck
 
       - name: Generate shellcheck report
-        if: ${{ inputs.run_shellcheck_report }}
+        if: ${{ github.event_name == 'push' || inputs.run_shellcheck_report }}
         continue-on-error: true
         run: |
           mkdir -p .ci-reports
@@ -90,7 +93,7 @@ jobs:
           echo "Total shellcheck warnings: $(wc -l < .ci-reports/shellcheck.txt || echo 0)"
 
       - name: Upload shellcheck report
-        if: ${{ inputs.run_shellcheck_report }}
+        if: ${{ github.event_name == 'push' || inputs.run_shellcheck_report }}
         uses: actions/upload-artifact@v4
         with:
           name: shellcheck-report
@@ -110,7 +113,6 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-          # Only commit code formatting changes; ignore the .ci-reports/ output
           git add -A ':!.ci-reports'
 
           if git diff --cached --quiet; then

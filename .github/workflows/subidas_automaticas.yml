@@ -1,0 +1,30 @@
+name: Subidas Programadas Automatizadas
+
+on:
+  schedule:
+    # Se ejecuta todos los días a las 20:00 UTC (22:00 en España)
+    - cron: '0 20 * * *'
+  workflow_dispatch: # Permite activar la subida manualmente desde la web de GitHub
+
+jobs:
+  auto-push-cambios:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio con Token Clásico
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.MI_TOKEN_CLASICO }}
+          fetch-depth: 0
+
+      - name: Simular cambios o ejecutar tareas
+        run: |
+          # Registro interno para asegurar que el commit siempre tenga contenido
+          echo "Sincronización del sistema: $(date)" >> logs_sincronizacion.txt
+
+      - name: Forzar subida de nuevos archivos a GitHub
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Sincronización automática programada [Skip CI]" || exit 0
+          git push origin main

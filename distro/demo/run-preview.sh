@@ -69,7 +69,8 @@ docker run -d \
     aurumos:desktop
 
 echo "Contenedor iniciado. Esperando noVNC (hasta 120s)..."
-for i in $(seq 1 60); do
+# Use `_` as the unused loop var so shellcheck SC2034 doesn't fire
+for _ in $(seq 1 60); do
     if curl -sf http://localhost:6080/vnc.html >/dev/null 2>&1; then
         echo "✓ noVNC listo → http://localhost:6080/vnc.html"
         exit 0

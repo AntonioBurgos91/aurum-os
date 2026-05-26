@@ -11,6 +11,10 @@ use serde::Deserialize;
 pub struct Config {
     #[serde(default)]
     pub mlflow: MlflowSection,
+    // The wandb section is populated from TOML via serde and read at runtime by
+    // the Python-side wandb integration via env vars set elsewhere in the stack.
+    // clippy can't see those reads, so silence dead_code at the parent field.
+    #[allow(dead_code)]
     #[serde(default)]
     pub wandb: WandbSection,
 }

@@ -101,22 +101,76 @@ jobs:
         run: cd build && ctest --output-on-failure
 
   # --- smoke (integration, slowest) -------------------------------------
+  # Builds the full container stack (aurumos:dev → aurumos:desktop) and runs
+  # the smoke-test suite against it. Layer-cached via buildx + GHA cache, so
+  # only Dockerfile/CMakeLists/Cargo.toml churn triggers a long rebuild.
+  # First build (cold cache): ~25 min. Warm: ~3-5 min.
   smoke:
     runs-on: ubuntu-24.04
     needs: [build-rust, build-cpp]
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Build demo container
-        run: docker build -f distro/demo/Dockerfile.desktop -t aurumos:desktop .
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Layer cache for aurumos:dev (base dev image — ~2 GB of toolchain)
+      - name: Build aurumos:dev (base)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          tags: aurumos:dev
+          load: true
+          cache-from: type=gha,scope=aurumos-dev
+          cache-to: type=gha,scope=aurumos-dev,mode=max
+
+      # aurumos:desktop layers Hyprland + Qt builds + Rust daemons on top
+      - name: Build aurumos:desktop
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: distro/demo/Dockerfile.desktop
+          tags: aurumos:desktop
+          load: true
+          cache-from: type=gha,scope=aurumos-desktop
+          cache-to: type=gha,scope=aurumos-desktop,mode=max
+
       - name: Start container
         run: |
           docker run -d --name aurum-desktop \
             -p 6080:6080 -p 5900:5900 \
             -e GPU_BACKEND=headless \
             aurumos:desktop
-          sleep 30   # wait for compositor + apps
+
+      - name: Wait for noVNC to come up
+        run: |
+          # Poll the noVNC HTML5 endpoint until it answers (max 90s). This
+          # replaces the previous blind `sleep 30` — the compositor + daemons
+          # take variable time to wire up in the headless backend.
+          for i in $(seq 1 45); do
+            if curl -fsS http://localhost:6080/vnc.html >/dev/null 2>&1; then
+              echo "noVNC ready after ${i}*2s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::noVNC never came up — dumping container logs"
+          docker logs aurum-desktop | tail -100
+          exit 1
+
       - name: Run smoke
         run: ./tools/smoke-test.sh --json | tee smoke-output.json
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          echo "=== docker logs aurum-desktop ==="
+          docker logs aurum-desktop || true
+          echo "=== /var/log/aurum/* ==="
+          docker exec aurum-desktop bash -c 'tail -200 /var/log/aurum/*.log 2>/dev/null' || true
+
       - name: Upload smoke artifact
         if: always()
         uses: actions/upload-artifact@v4

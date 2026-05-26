@@ -87,8 +87,13 @@ skip() { echo -e "\e[36m[ai-coding]\e[0m SKIP — $*"; }
 # first boot.
 source_profile() {
     if [[ -f "${PROFILE_CONF}" ]]; then
+        # `set -a` and `set +a` are split onto separate lines so shellcheck
+        # honours the `source=/dev/null` directive (it ignores it when source
+        # is preceded by another command on the same line).
+        set -a
         # shellcheck source=/dev/null
-        set -a; source "${PROFILE_CONF}"; set +a
+        source "${PROFILE_CONF}"
+        set +a
         log "sourced profile: ${AURUM_PROFILE:-?} (default model = ${AURUM_OLLAMA_DEFAULT:-?})"
     else
         warn "profile.conf not found at ${PROFILE_CONF}; using standard-tier fallback"

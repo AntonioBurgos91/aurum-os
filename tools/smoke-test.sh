@@ -540,6 +540,7 @@ fi
 # 13. Frame brightness
 # ────────────────────────────────────────────────────────────────────────────
 header "13. Frame brightness"
+# shellcheck disable=SC2034  # `mean` is the python script's exit signal; consumed by the `|| true` fallback path
 mean=$(python3 - <<'PY' 2>/dev/null || true
 import socket, struct
 s = socket.create_connection(("localhost", 5900), timeout=4)

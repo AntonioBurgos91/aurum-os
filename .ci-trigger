@@ -1,0 +1,5 @@
+# CI Trigger Marker
+
+This file exists to bump commits when a new workflow needs bootstrapping.
+
+Last trigger: 2026-05-26 (bootstrap-format.yml)

@@ -34,8 +34,13 @@ if [[ ! -f "${PROFILE_CONF}" ]]; then
     export AURUM_OLLAMA_DEFAULT="qwen2.5-coder:7b"
     export AURUM_PROFILE="standard"
 else
+    # `set -a` and `set +a` on separate lines so shellcheck honours the
+    # source=/dev/null directive (it ignores it when source is preceded by
+    # another command on the same line).
+    set -a
     # shellcheck source=/dev/null
-    set -a; source "${PROFILE_CONF}"; set +a
+    source "${PROFILE_CONF}"
+    set +a
 fi
 : "${AURUM_OLLAMA_DEFAULT:=qwen2.5-coder:7b}"
 

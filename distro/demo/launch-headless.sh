@@ -77,8 +77,10 @@ for _ in $(seq 1 20); do
         > "${XDG_RUNTIME_DIR}/dbus-session.addr" && break
     sleep 0.3
 done
-export DBUS_SESSION_BUS_ADDRESS="$(cat "${XDG_RUNTIME_DIR}/dbus-session.addr" 2>/dev/null \
+# Split declare + assign so the subshell's exit status isn't masked (SC2155 fix)
+DBUS_SESSION_BUS_ADDRESS="$(cat "${XDG_RUNTIME_DIR}/dbus-session.addr" 2>/dev/null \
     || echo "unix:path=${XDG_RUNTIME_DIR}/dbus-session.sock")"
+export DBUS_SESSION_BUS_ADDRESS
 log "D-Bus: ${DBUS_SESSION_BUS_ADDRESS}"
 
 # ── Rust daemons ──────────────────────────────────────────────────────────────
@@ -99,7 +101,8 @@ supervise() {
         # never detect a crashed daemon and never count restarts.
         set -o pipefail
         local count=0
-        local window_start=$(date +%s)
+        local window_start
+        window_start=$(date +%s)
         while true; do
             if ! command -v "$name" >/dev/null 2>&1; then
                 echo "[$name supervisor] binary not found in PATH, giving up" >>"$log"
@@ -107,7 +110,8 @@ supervise() {
             fi
             "$name" 2>&1 | sed "s|^|[$name] |" >>"$log"
             local rc=$?
-            local now=$(date +%s)
+            local now
+            now=$(date +%s)
             if (( now - window_start >= 60 )); then
                 count=0; window_start=$now
             fi
@@ -250,6 +254,7 @@ done
 # ── wayvnc ───────────────────────────────────────────────────────────────────
 log "Arrancando wayvnc en :5900 (output: VIRTUAL-1)..."
 wayvnc 0.0.0.0 5900 --output=VIRTUAL-1 >/var/log/aurum/wayvnc.log 2>&1 &
+# shellcheck disable=SC2034  # exported as reference for trap/debugging; kept by name
 WAYVNC_PID=$!
 sleep 3
 

@@ -7,7 +7,13 @@ Production-grade · macOS-Sequoia-class UX · adapts to your hardware.
 
 [![License: GPL v3+](https://img.shields.io/badge/License-GPL_v3+-blue?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.2.0--beta-orange?style=flat-square)](VERSION)
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen?style=flat-square)](.github/workflows/ci.yml)
+[![CI](https://github.com/AntonioBurgos91/aurum-os/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AntonioBurgos91/aurum-os/actions/workflows/ci.yml)
+[![Stars](https://img.shields.io/github/stars/AntonioBurgos91/aurum-os?style=flat-square&logo=github&color=F7C52E)](https://github.com/AntonioBurgos91/aurum-os/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/AntonioBurgos91/aurum-os?style=flat-square&logo=git)](https://github.com/AntonioBurgos91/aurum-os/commits/main)
+[![Top language](https://img.shields.io/github/languages/top/AntonioBurgos91/aurum-os?style=flat-square)](https://github.com/AntonioBurgos91/aurum-os)
+[![Code size](https://img.shields.io/github/languages/code-size/AntonioBurgos91/aurum-os?style=flat-square)](https://github.com/AntonioBurgos91/aurum-os)
+[![Issues](https://img.shields.io/github/issues/AntonioBurgos91/aurum-os?style=flat-square&logo=github)](https://github.com/AntonioBurgos91/aurum-os/issues)
+
 [![AI Stack](https://img.shields.io/badge/AI%20stack-SOTA%202026-blueviolet?style=flat-square)](docs/guides/sota-2026-stack.md)
 [![Profiles](https://img.shields.io/badge/profiles-lite%20%C2%B7%20standard%20%C2%B7%20pro%20%C2%B7%20workstation-success?style=flat-square)](docs/guides/hardware-profiles.md)
 [![C++ 23](https://img.shields.io/badge/C%2B%2B-23-blue?style=flat-square&logo=cplusplus)](CMakeLists.txt)
@@ -35,7 +41,7 @@ laptop to a dual-GPU workstation, the defaults always make sense.
 Forked from **Pop!_OS 24.04 LTS** to inherit its battle-tested NVIDIA / CUDA
 story, then layered with:
 
-- A bespoke **Qt6/QML desktop environment** (12 native apps, 12 shared QML components, 3 Rust daemons exposed via D-Bus)
+- A bespoke **Qt6/QML desktop environment** (9 native apps, 12 shared QML components, 3 Rust daemons exposed via D-Bus)
 - A pinned **Hyprland compositor fork** tuned to never steal frames from a training run
 - A **curated SOTA-2026 AI stack** (PyTorch 2.12, vLLM, Unsloth, DSPy, Continue.dev, Langfuse, ComfyUI, Whisper, …)
 - A **hardware profile detector** that picks model sizes, VRAM flags, and quantization defaults so your tools "just work"
@@ -122,7 +128,7 @@ aurum-model-pack install workstation   # Llama-3.3-70b + Flux.1-dev (24 GB+ only
 
 ## The desktop
 
-Twelve native Qt6/QML apps sharing a single `Aurum.Aqua` module for visual
+Nine native Qt6/QML apps sharing a single `Aurum.Aqua` module for visual
 consistency. Built from scratch — no GNOME / KDE / XFCE inheritance.
 
 | App | Role |
@@ -201,7 +207,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the full diagrams.
 ### 1. Try it without installing (Docker preview, ~10 min)
 
 ```bash
-git clone https://github.com/aurumos/aurum-os
+git clone https://github.com/AntonioBurgos91/aurum-os.git
 cd aurum-os
 distro/demo/run-preview.sh             # spins up the desktop in a noVNC iframe
 # → http://localhost:6080/vnc.html
@@ -273,7 +279,7 @@ For the **live-container smoke harness** (52 checks against a running preview):
 
 ## CI
 
-[![CI](https://github.com/aurumos/aurum-os/actions/workflows/ci.yml/badge.svg?branch=main)](.github/workflows/ci.yml)
+[![CI](https://github.com/AntonioBurgos91/aurum-os/actions/workflows/ci.yml/badge.svg?branch=main)](.github/workflows/ci.yml)
 
 Every push and PR triggers GitHub Actions on `ubuntu-24.04` runners:
 
@@ -340,6 +346,43 @@ A few design decisions worth highlighting:
 
 ---
 
+## ⭐ Star History
+
+<a href="https://star-history.com/#AntonioBurgos91/aurum-os&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=AntonioBurgos91/aurum-os&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=AntonioBurgos91/aurum-os&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=AntonioBurgos91/aurum-os&type=Date" />
+ </picture>
+</a>
+
+---
+
+## 🤝 Contributing
+
+AurumOS is an honest beta — actively looking for contributors who want to push it toward v1.0.
+
+**Especially interested in:**
+
+- 🧪 **Benchmark results** on different hardware tiers (lite / standard / pro / workstation)
+- 🛠️ **Missing tools** from the SOTA 2026 stack you'd want shipped by default
+- 🐛 **Bug reports** from the live preview container — `distro/demo/run-preview.sh`
+- 🎨 **Theme contributions** — new procedural wallpapers, icon variants, accent colors
+- 📦 **Model Pack manifests** — propose a new curated bundle
+- 🌍 **i18n** — Spanish, French, German, Japanese translations welcome
+- 📝 **Documentation** — guides for specific use cases (RAG dev setup, multi-GPU training, etc.)
+
+**Getting started:**
+
+1. Browse [open issues](https://github.com/AntonioBurgos91/aurum-os/issues) or open a new one
+2. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow
+3. Try the [live preview](distro/demo/run-preview.sh) before proposing changes
+4. PRs welcome — small fixes get merged fast
+
+**No CLA required.** Just contribute under the GPL-3.0 license.
+
+---
+
 ## License
 
 AurumOS is **GPL-3.0-or-later**. Full text in [`LICENSE`](LICENSE), with a
@@ -357,6 +400,9 @@ several AurumOS apps derive from.
 
 <div align="center">
 
-**AurumOS** · the AI engineer's Linux desktop ·  [docs](docs/) · [issues](https://github.com/aurumos/aurum-os/issues) · [discussions](https://github.com/aurumos/aurum-os/discussions)
+**AurumOS** · the AI engineer's Linux desktop ·  [docs](docs/) · [issues](https://github.com/AntonioBurgos91/aurum-os/issues) · [discussions](https://github.com/AntonioBurgos91/aurum-os/discussions)
+
+[![Star this repo](https://img.shields.io/github/stars/AntonioBurgos91/aurum-os?style=social)](https://github.com/AntonioBurgos91/aurum-os/stargazers)
+[![Follow on GitHub](https://img.shields.io/github/followers/AntonioBurgos91?style=social)](https://github.com/AntonioBurgos91)
 
 </div>

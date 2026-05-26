@@ -34,8 +34,13 @@ impl Default for MlflowSection {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct WandbSection {
+    // Fields are read from TOML via serde even though not referenced directly
+    // in Rust code — they are part of the public config schema consumed by the
+    // Python-side wandb integration via env vars set elsewhere.
+    #[allow(dead_code)]
     #[serde(default)]
     pub api_key: String,
+    #[allow(dead_code)]
     #[serde(default)]
     pub entity: String,
 }

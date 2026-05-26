@@ -34,7 +34,7 @@ if [[ ! -f "${PROFILE_CONF}" ]]; then
     export AURUM_OLLAMA_DEFAULT="qwen2.5-coder:7b"
     export AURUM_PROFILE="standard"
 else
-    # shellcheck disable=SC1090
+    # shellcheck source=/dev/null
     set -a; source "${PROFILE_CONF}"; set +a
 fi
 : "${AURUM_OLLAMA_DEFAULT:=qwen2.5-coder:7b}"

@@ -122,7 +122,7 @@ resolve_paths() {
 source_profile() {
     AURUM_PROFILE="lite"
     if [[ -r "${PROFILE_CONF}" ]]; then
-        # shellcheck disable=SC1090
+        # shellcheck source=/dev/null
         set -a; source "${PROFILE_CONF}"; set +a
         AURUM_PROFILE="${AURUM_PROFILE:-lite}"
     else

@@ -122,8 +122,15 @@ resolve_paths() {
 source_profile() {
     AURUM_PROFILE="lite"
     if [[ -r "${PROFILE_CONF}" ]]; then
+        # shellcheck source=/dev/null directive must sit on the line directly
+        # above the source statement, with NO other commands on that line.
+        # `set -a` and `set +a` are split onto separate lines so shellcheck
+        # honours the directive (it ignores it when source is preceded by
+        # other commands on the same line).
+        set -a
         # shellcheck source=/dev/null
-        set -a; source "${PROFILE_CONF}"; set +a
+        source "${PROFILE_CONF}"
+        set +a
         AURUM_PROFILE="${AURUM_PROFILE:-lite}"
     else
         warn "${PROFILE_CONF} missing; assuming AURUM_PROFILE=lite"

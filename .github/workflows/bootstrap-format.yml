@@ -1,8 +1,7 @@
 name: Bootstrap Format
 
-# One-shot workflow that runs formatters on the codebase.
-# Triggers on any push to main + any change to this file.
-# After it pushes its fix commit (with [skip ci]), it won't re-trigger itself.
+# Runs formatters + lint diagnostics. Writes both code fixes AND
+# diagnostic reports directly to the repo, so they can be read via API.
 
 on:
   push:
@@ -15,7 +14,6 @@ permissions:
 jobs:
   format:
     runs-on: ubuntu-24.04
-    # Skip if this is the bot's own commit, to prevent any loop possibility
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') && github.actor != 'github-actions[bot]' }}
     steps:
       - name: Checkout
@@ -24,21 +22,53 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      - name: Create reports dir
+        run: mkdir -p .ci-reports
+
       # ---------- Rust ----------
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
+          components: rustfmt,clippy
 
       - name: cargo fmt
         run: |
-          set -e
-          for d in daemons/gpu-monitor daemons/spotlight-indexer daemons/ml-jobs-tracker tools/aurum-mockup; do
-            if [ -f "$d/Cargo.toml" ]; then
-              echo "=== cargo fmt: $d ==="
-              cargo fmt --manifest-path "$d/Cargo.toml"
-            fi
-          done
+          set +e
+          {
+            echo "=== cargo fmt diagnostic report ==="
+            echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            for d in daemons/gpu-monitor daemons/spotlight-indexer daemons/ml-jobs-tracker tools/aurum-mockup; do
+              if [ -f "$d/Cargo.toml" ]; then
+                echo "--- $d ---"
+                cargo fmt --manifest-path "$d/Cargo.toml" --check 2>&1
+                echo "exit_code: $?"
+                # Now apply for real
+                cargo fmt --manifest-path "$d/Cargo.toml"
+              fi
+            done
+          } | tee .ci-reports/rustfmt.txt
+
+      - name: cargo clippy (diagnostic only)
+        continue-on-error: true
+        run: |
+          set +e
+          {
+            echo "=== cargo clippy diagnostic report ==="
+            echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            for d in daemons/gpu-monitor daemons/spotlight-indexer daemons/ml-jobs-tracker; do
+              if [ -f "$d/Cargo.toml" ]; then
+                echo ""
+                echo "===================================="
+                echo "Crate: $d"
+                echo "===================================="
+                cargo clippy --manifest-path "$d/Cargo.toml" --release --message-format=human -- -D warnings 2>&1
+                echo ""
+                echo "clippy exit: $?"
+              fi
+            done
+          } | tee .ci-reports/clippy.txt
 
       # ---------- C++ ----------
       - name: Install clang-format
@@ -46,56 +76,91 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang-format
 
-      - name: clang-format -i
+      - name: clang-format diagnostic + apply
         run: |
-          set -e
-          find desktop libs \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" \) -type f -print0 \
+          set +e
+          {
+            echo "=== clang-format diagnostic report ==="
+            echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "clang-format version: $(clang-format --version)"
+            echo ""
+            echo "--- Files that would change ---"
+            find desktop libs \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" \) -type f 2>/dev/null | while read f; do
+              if ! clang-format --dry-run --Werror "$f" 2>&1 | grep -q "^$"; then
+                echo "would change: $f"
+              fi
+            done
+            echo ""
+          } | tee .ci-reports/clang-format.txt
+
+          # Apply for real
+          find desktop libs \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "*.cc" \) -type f -print0 2>/dev/null \
             | xargs -0 -r clang-format -i || true
 
-      # ---------- Shellcheck (report) ----------
+      # ---------- Shellcheck ----------
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
 
-      - name: shellcheck report
+      - name: shellcheck diagnostic
         continue-on-error: true
         run: |
-          mkdir -p .ci-reports
+          set +e
+          {
+            echo "=== shellcheck diagnostic report ==="
+            echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "shellcheck version: $(shellcheck --version | head -2 | tail -1)"
+            echo ""
+          } > .ci-reports/shellcheck.txt
+
           find . -name "*.sh" \
             -not -path "./build/*" \
             -not -path "./target/*" \
             -not -path "./.git/*" \
+            -not -path "./.ci-reports/*" \
             -print0 \
-          | xargs -0 -r shellcheck -S warning -f gcc 2>&1 \
-          | tee .ci-reports/shellcheck.txt || true
-          echo "---"
-          echo "Total shellcheck issues: $(wc -l < .ci-reports/shellcheck.txt || echo 0)"
+          | xargs -0 -r shellcheck -S warning -f gcc >> .ci-reports/shellcheck.txt 2>&1 || true
 
-      - name: Upload shellcheck report
-        uses: actions/upload-artifact@v4
-        with:
-          name: shellcheck-report
-          path: .ci-reports/shellcheck.txt
-          if-no-files-found: ignore
+          echo "" >> .ci-reports/shellcheck.txt
+          echo "Total lines: $(wc -l < .ci-reports/shellcheck.txt)" >> .ci-reports/shellcheck.txt
 
-      # ---------- Diff & commit ----------
-      - name: Show diff
+      # ---------- Summary ----------
+      - name: Generate summary
         run: |
-          echo "=== Diff stat ==="
-          git diff --stat || true
-          echo "=== Files modified ==="
-          git status --short || true
+          {
+            echo "# CI Bootstrap Format Report"
+            echo ""
+            echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "Commit: ${GITHUB_SHA}"
+            echo ""
+            echo "## Counts"
+            echo ""
+            echo "- shellcheck issues:  $(grep -c -E "(warning|error):" .ci-reports/shellcheck.txt 2>/dev/null || echo 0)"
+            echo "- clippy warnings:    $(grep -c "^warning:" .ci-reports/clippy.txt 2>/dev/null || echo 0)"
+            echo "- clippy errors:      $(grep -c "^error:" .ci-reports/clippy.txt 2>/dev/null || echo 0)"
+            echo "- clang-format files: $(grep -c "would change:" .ci-reports/clang-format.txt 2>/dev/null || echo 0)"
+            echo ""
+            echo "See individual files for details."
+          } > .ci-reports/SUMMARY.md
 
-      - name: Commit & push
+      # ---------- Commit ALL: code fixes + reports ----------
+      - name: Commit code + reports
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add -A ':!.ci-reports'
+          git add -A
 
           if git diff --cached --quiet; then
-            echo "Nothing to format. Codebase is already clean."
+            echo "Nothing changed."
             exit 0
           fi
 
-          git commit -m "style: bootstrap-format cargo fmt + clang-format [skip ci]"
+          git commit -m "ci(reports): regenerate lint diagnostics + format fixes [skip ci]
+
+Reports committed to .ci-reports/:
+- shellcheck.txt
+- clippy.txt
+- rustfmt.txt
+- clang-format.txt
+- SUMMARY.md"
           git push
-          echo "Pushed formatting fixes."
+          echo "Pushed."

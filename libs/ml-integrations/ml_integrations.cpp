@@ -14,21 +14,18 @@
 #include <QProcess>
 #include <QString>
 #include <QStringList>
-
 #include <mutex>
 
 namespace aurum::ml {
 
 FileKind classify(const QString& path) {
     const auto ext = QFileInfo(path).suffix().toLower();
-    if (ext == "ipynb")                        return FileKind::Notebook;
-    if (ext == "safetensors")                  return FileKind::Safetensors;
-    if (ext == "parquet" || ext == "arrow" || ext == "feather")
-                                               return FileKind::Parquet;
-    if (ext == "pt" || ext == "gguf" || ext == "onnx" ||
-        ext == "bin" || ext == "ckpt")         return FileKind::Model;
-    if (ext == "csv" || ext == "tsv" || ext == "jsonl")
-                                               return FileKind::Dataset;
+    if (ext == "ipynb") return FileKind::Notebook;
+    if (ext == "safetensors") return FileKind::Safetensors;
+    if (ext == "parquet" || ext == "arrow" || ext == "feather") return FileKind::Parquet;
+    if (ext == "pt" || ext == "gguf" || ext == "onnx" || ext == "bin" || ext == "ckpt")
+        return FileKind::Model;
+    if (ext == "csv" || ext == "tsv" || ext == "jsonl") return FileKind::Dataset;
     return FileKind::Unknown;
 }
 
@@ -53,12 +50,12 @@ QByteArray read_range(const QString& path, qint64 offset, qint64 n) {
 QString summarize_outputs(const QJsonArray& outputs) {
     if (outputs.isEmpty()) return {};
     const auto first = outputs.first().toObject();
-    const auto type  = first.value("output_type").toString();
+    const auto type = first.value("output_type").toString();
     if (type == "stream") {
         // Stream output text is either a string or a string list.
         const auto v = first.value("text");
-        if (v.isString())  return QString("stdout: %1").arg(v.toString().left(120));
-        if (v.isArray())   return QString("stdout: %1").arg(v.toArray().first().toString().left(120));
+        if (v.isString()) return QString("stdout: %1").arg(v.toString().left(120));
+        if (v.isArray()) return QString("stdout: %1").arg(v.toArray().first().toString().left(120));
         return "stdout: …";
     }
     if (type == "error") {
@@ -66,9 +63,10 @@ QString summarize_outputs(const QJsonArray& outputs) {
     }
     if (type == "display_data" || type == "execute_result") {
         const auto data = first.value("data").toObject();
-        if (data.contains("image/png"))   return "image/png";
-        if (data.contains("text/html"))   return "text/html";
-        if (data.contains("text/plain"))  return "text: " + data.value("text/plain").toString().left(120);
+        if (data.contains("image/png")) return "image/png";
+        if (data.contains("text/html")) return "text/html";
+        if (data.contains("text/plain"))
+            return "text: " + data.value("text/plain").toString().left(120);
     }
     return "(" + type + ")";
 }
@@ -81,9 +79,9 @@ QString dtype_byte_size(const QString& dtype) {
     // the fallback "?" and the safetensors preview byte math was wrong.
     const QString d = dtype.toLower();
     if (d == "f32" || d == "i32" || d == "u32") return "4";
-    if (d == "f16" || d == "bf16"|| d == "i16" || d == "u16") return "2";
+    if (d == "f16" || d == "bf16" || d == "i16" || d == "u16") return "2";
     if (d == "f64" || d == "i64" || d == "u64") return "8";
-    if (d == "i8"  || d == "u8"  || d == "bool") return "1";
+    if (d == "i8" || d == "u8" || d == "bool") return "1";
     return "?";
 }
 
@@ -91,7 +89,7 @@ QJsonObject error_obj(const QString& msg) {
     return QJsonObject{{"error", msg}};
 }
 
-} // namespace
+}  // namespace
 
 QJsonObject preview_notebook(const QString& path, int max_cells) {
     QFile f(path);
@@ -118,17 +116,18 @@ QJsonObject preview_notebook(const QString& path, int max_cells) {
         // `source` can be a single string or a list of lines.
         QString source;
         const auto sv = cell.value("source");
-        if (sv.isString())  source = sv.toString();
+        if (sv.isString())
+            source = sv.toString();
         else if (sv.isArray()) {
             for (const auto& line : sv.toArray()) source += line.toString();
         }
 
         QJsonObject c;
-        c["type"]   = type;
+        c["type"] = type;
         c["source"] = source.left(kCellPreviewMaxChars);
         if (type == "code") {
-            c["execution_count"]  = cell.value("execution_count");
-            c["output_summary"]   = summarize_outputs(cell.value("outputs").toArray());
+            c["execution_count"] = cell.value("execution_count");
+            c["output_summary"] = summarize_outputs(cell.value("outputs").toArray());
         }
         summarized.append(c);
         ++kept;
@@ -143,8 +142,7 @@ QJsonObject preview_safetensors(const QString& path, int max_tensors) {
     // The header is small enough (a few hundred KB at most) that we can read
     // it whole and parse with QJsonDocument.
     const auto header_len_bytes = read_range(path, 0, 8);
-    if (header_len_bytes.size() != 8)
-        return error_obj("safetensors: cannot read header length");
+    if (header_len_bytes.size() != 8) return error_obj("safetensors: cannot read header length");
 
     quint64 header_len = 0;
     QDataStream ds(header_len_bytes);
@@ -182,11 +180,11 @@ QJsonObject preview_safetensors(const QString& path, int max_tensors) {
 
         if (kept < max_tensors) {
             QJsonObject row;
-            row["name"]         = k;
-            row["dtype"]        = dtype;
-            row["shape"]        = shape_v;
-            row["param_count"]  = static_cast<qint64>(n);
-            row["dtype_bytes"]  = dtype_byte_size(dtype);
+            row["name"] = k;
+            row["dtype"] = dtype;
+            row["shape"] = shape_v;
+            row["param_count"] = static_cast<qint64>(n);
+            row["dtype_bytes"] = dtype_byte_size(dtype);
             tensors.append(row);
             ++kept;
         }
@@ -194,11 +192,10 @@ QJsonObject preview_safetensors(const QString& path, int max_tensors) {
 
     QJsonObject out;
     out["total_tensors"] = root.size() - (root.contains("__metadata__") ? 1 : 0);
-    out["total_params"]  = static_cast<qint64>(total_params);
-    out["dtypes"]        = QJsonArray::fromStringList(dtypes);
-    out["tensors"]       = tensors;
-    if (root.contains("__metadata__"))
-        out["metadata"] = root.value("__metadata__");
+    out["total_params"] = static_cast<qint64>(total_params);
+    out["dtypes"] = QJsonArray::fromStringList(dtypes);
+    out["tensors"] = tensors;
+    if (root.contains("__metadata__")) out["metadata"] = root.value("__metadata__");
     return out;
 }
 
@@ -212,13 +209,15 @@ QJsonObject preview_parquet(const QString& path, int rows) {
     };
     QString script;
     for (const auto& c : candidates)
-        if (!c.isEmpty() && QFile::exists(c)) { script = c; break; }
+        if (!c.isEmpty() && QFile::exists(c)) {
+            script = c;
+            break;
+        }
     if (script.isEmpty()) return error_obj("parquet_peek.py not installed");
 
     QProcess p;
     p.start("python3", {script, path, QString::number(rows)});
-    if (!p.waitForFinished(4000))
-        return error_obj("parquet_peek timed out");
+    if (!p.waitForFinished(4000)) return error_obj("parquet_peek timed out");
     if (p.exitCode() != 0)
         return error_obj("parquet_peek: " + QString::fromUtf8(p.readAllStandardError()).trimmed());
 
@@ -231,24 +230,39 @@ QJsonObject preview_parquet(const QString& path, int rows) {
 
 QJsonObject preview(const QString& path) {
     QJsonObject out{
-        {"path",      path},
-        {"size",      QFileInfo(path).size()},
-        {"mtime",     QFileInfo(path).lastModified().toString(Qt::ISODate)},
+        {"path", path},
+        {"size", QFileInfo(path).size()},
+        {"mtime", QFileInfo(path).lastModified().toString(Qt::ISODate)},
         {"supported", true},
-        {"preview",   QJsonValue::Null},
-        {"error",     QJsonValue::Null},
+        {"preview", QJsonValue::Null},
+        {"error", QJsonValue::Null},
     };
 
     const auto kind = classify(path);
     QString kind_str = "unknown";
     QJsonObject inner;
     switch (kind) {
-        case FileKind::Notebook:    kind_str = "notebook";    inner = preview_notebook(path);   break;
-        case FileKind::Safetensors: kind_str = "safetensors"; inner = preview_safetensors(path); break;
-        case FileKind::Parquet:     kind_str = "parquet";     inner = preview_parquet(path);    break;
-        case FileKind::Model:       kind_str = "model";       break;
-        case FileKind::Dataset:     kind_str = "dataset";     break;
-        case FileKind::Unknown:     out["supported"] = false; break;
+        case FileKind::Notebook:
+            kind_str = "notebook";
+            inner = preview_notebook(path);
+            break;
+        case FileKind::Safetensors:
+            kind_str = "safetensors";
+            inner = preview_safetensors(path);
+            break;
+        case FileKind::Parquet:
+            kind_str = "parquet";
+            inner = preview_parquet(path);
+            break;
+        case FileKind::Model:
+            kind_str = "model";
+            break;
+        case FileKind::Dataset:
+            kind_str = "dataset";
+            break;
+        case FileKind::Unknown:
+            out["supported"] = false;
+            break;
     }
     out["kind"] = kind_str;
     if (inner.contains("error")) {
@@ -261,7 +275,7 @@ QJsonObject preview(const QString& path) {
 
 void init_ml_integrations() {
     static std::once_flag init_flag;
-    std::call_once(init_flag, [](){
+    std::call_once(init_flag, []() {
         // Informational message goes through Qt logging; stdout is reserved
         // for tools that pipe the library's preview() JSON output (see
         // tests/test_preview.cpp). Filter via QT_LOGGING_RULES in production.
@@ -269,7 +283,7 @@ void init_ml_integrations() {
     });
 }
 
-} // namespace aurum::ml
+}  // namespace aurum::ml
 
 extern "C" void init_ml_integrations() {
     aurum::ml::init_ml_integrations();

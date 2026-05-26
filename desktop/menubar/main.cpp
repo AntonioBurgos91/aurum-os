@@ -28,23 +28,19 @@
 
 class SystemClient : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QString systemTime    READ systemTime    NOTIFY changed)
-    Q_PROPERTY(QString focusedApp    READ focusedApp    NOTIFY changed)
-    Q_PROPERTY(int     gpuUtilization READ gpuUtilization NOTIFY changed)
-    Q_PROPERTY(double  vramUsedGb    READ vramUsedGb    NOTIFY changed)
-    Q_PROPERTY(double  vramTotalGb   READ vramTotalGb   NOTIFY changed)
-    Q_PROPERTY(int     gpuTemp       READ gpuTemp       NOTIFY changed)
-    Q_PROPERTY(QString gpuName       READ gpuName       NOTIFY changed)
+    Q_PROPERTY(QString systemTime READ systemTime NOTIFY changed)
+    Q_PROPERTY(QString focusedApp READ focusedApp NOTIFY changed)
+    Q_PROPERTY(int gpuUtilization READ gpuUtilization NOTIFY changed)
+    Q_PROPERTY(double vramUsedGb READ vramUsedGb NOTIFY changed)
+    Q_PROPERTY(double vramTotalGb READ vramTotalGb NOTIFY changed)
+    Q_PROPERTY(int gpuTemp READ gpuTemp NOTIFY changed)
+    Q_PROPERTY(QString gpuName READ gpuName NOTIFY changed)
     Q_PROPERTY(QString netThroughput READ netThroughput NOTIFY changed)
 
 public:
     explicit SystemClient(QObject* parent = nullptr) : QObject(parent) {
-        m_iface = new QDBusInterface(
-            "org.aurumos.GpuMonitorService",
-            "/org/aurumos/GpuMonitor",
-            "org.aurumos.GpuMonitor",
-            QDBusConnection::sessionBus(),
-            this);
+        m_iface = new QDBusInterface("org.aurumos.GpuMonitorService", "/org/aurumos/GpuMonitor",
+                                     "org.aurumos.GpuMonitor", QDBusConnection::sessionBus(), this);
         m_lastRx = readTotalRxBytes();
         auto* t = new QTimer(this);
         connect(t, &QTimer::timeout, this, &SystemClient::tick);
@@ -52,14 +48,30 @@ public:
         tick();
     }
 
-    QString systemTime()    const { return m_time; }
-    QString focusedApp()    const { return m_focusedApp; }
-    int     gpuUtilization() const { return m_util; }
-    double  vramUsedGb()    const { return m_used  / 1073741824.0; }
-    double  vramTotalGb()   const { return m_total / 1073741824.0; }
-    int     gpuTemp()       const { return m_temp; }
-    QString gpuName()       const { return m_name; }
-    QString netThroughput() const { return m_net; }
+    QString systemTime() const {
+        return m_time;
+    }
+    QString focusedApp() const {
+        return m_focusedApp;
+    }
+    int gpuUtilization() const {
+        return m_util;
+    }
+    double vramUsedGb() const {
+        return m_used / 1073741824.0;
+    }
+    double vramTotalGb() const {
+        return m_total / 1073741824.0;
+    }
+    int gpuTemp() const {
+        return m_temp;
+    }
+    QString gpuName() const {
+        return m_name;
+    }
+    QString netThroughput() const {
+        return m_net;
+    }
 
 signals:
     void changed();
@@ -76,29 +88,41 @@ private slots:
 private:
     void pollGpu() {
         if (!m_iface->isValid()) {
-            m_name = "—"; m_util = 0; m_temp = 0;
-            m_used = 0;   m_total = 0;
+            m_name = "—";
+            m_util = 0;
+            m_temp = 0;
+            m_used = 0;
+            m_total = 0;
             return;
         }
-        if (auto r = QDBusReply<QString>   (m_iface->call("gpu_name"));        r.isValid()) m_name  = r.value();
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<uint>      (m_iface->call("gpu_utilization")); r.isValid()) m_util  = static_cast<int>(r.value());
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_used"));       r.isValid()) m_used  = r.value();
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_total"));      r.isValid()) m_total = r.value();
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<uint>      (m_iface->call("temperature"));     r.isValid()) m_temp  = static_cast<int>(r.value());
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<QString>(m_iface->call("gpu_name")); r.isValid())
+            m_name = r.value();
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<uint>(m_iface->call("gpu_utilization")); r.isValid())
+            m_util = static_cast<int>(r.value());
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_used")); r.isValid())
+            m_used = r.value();
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_total")); r.isValid())
+            m_total = r.value();
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<uint>(m_iface->call("temperature")); r.isValid())
+            m_temp = static_cast<int>(r.value());
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
     }
 
     void pollNet() {
         const qulonglong now = readTotalRxBytes();
         const qulonglong delta = now >= m_lastRx ? now - m_lastRx : 0;
         const double mbps = static_cast<double>(delta) / (1024.0 * 1024.0);
-        m_net = mbps < 0.1
-              ? QString::number(mbps * 1024.0, 'f', 1) + " KB/s"
-              : QString::number(mbps,          'f', 1) + " MB/s";
+        m_net = mbps < 0.1 ? QString::number(mbps * 1024.0, 'f', 1) + " KB/s"
+                           : QString::number(mbps, 'f', 1) + " MB/s";
         m_lastRx = now;
     }
 
@@ -108,7 +132,10 @@ private:
     void pollFocusedApp() {
         QProcess p;
         p.start("hyprctl", {"activewindow", "-j"});
-        if (!p.waitForFinished(120)) { m_focusedApp.clear(); return; }
+        if (!p.waitForFinished(120)) {
+            m_focusedApp.clear();
+            return;
+        }
         const auto out = p.readAllStandardOutput();
         // Avoid pulling QJsonDocument for one field — regex is fine.
         static const QRegularExpression re("\"class\"\\s*:\\s*\"([^\"]*)\"");
@@ -134,12 +161,12 @@ private:
     }
 
     QDBusInterface* m_iface = nullptr;
-    QString    m_time;
-    QString    m_focusedApp;
-    QString    m_name = "—";
-    QString    m_net  = "0.0 KB/s";
-    int        m_util = 0;
-    int        m_temp = 0;
+    QString m_time;
+    QString m_focusedApp;
+    QString m_name = "—";
+    QString m_net = "0.0 KB/s";
+    int m_util = 0;
+    int m_temp = 0;
     qulonglong m_used = 0;
     qulonglong m_total = 0;
     qulonglong m_lastRx = 0;
@@ -165,7 +192,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("systemClient", &systemClient);
     // Some applets read from gpuClient (legacy QML); alias to systemClient so
     // either name works in the menubar QML during the transition.
-    engine.rootContext()->setContextProperty("gpuClient",    &systemClient);
+    engine.rootContext()->setContextProperty("gpuClient", &systemClient);
 
     const QString qml = resolve_qml_path("MenuBar.qml", argv[0]);
     engine.load(QUrl::fromLocalFile(qml));

@@ -10,12 +10,12 @@
 //     home-dir state never leaks into a test assertion.
 //   * QTEST_GUILESS_MAIN — no QGuiApplication needed; the model has no GUI
 //     dependencies.
-#include <QtTest>
-#include <QSignalSpy>
-#include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
+#include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTextStream>
+#include <QtTest>
 
 #include "finder_model.h"
 
@@ -61,9 +61,9 @@ void TestFinderModel::init() {
     mkdir("Projects");
     mkdir("Models");
     mkdir("Notebooks");
-    writeFile("Projects/train.py",                  "print('hi')\n");
-    writeFile("Projects/config.yaml",               "lr: 0.001\n");
-    writeFile("Models/checkpoint.safetensors",      "binary-bytes");
+    writeFile("Projects/train.py", "print('hi')\n");
+    writeFile("Projects/config.yaml", "lr: 0.001\n");
+    writeFile("Models/checkpoint.safetensors", "binary-bytes");
     writeFile("Notebooks/analysis.ipynb",
               R"({"cells":[],"metadata":{},"nbformat":4,"nbformat_minor":5})");
 }
@@ -88,8 +88,7 @@ void TestFinderModel::mkdir(const QString& relpath) {
 
 int TestFinderModel::findRow(FinderModel& m, const QString& name) const {
     for (int i = 0; i < m.rowCount(); ++i) {
-        if (m.data(m.index(i, 0), FinderModel::NameRole).toString() == name)
-            return i;
+        if (m.data(m.index(i, 0), FinderModel::NameRole).toString() == name) return i;
     }
     return -1;
 }
@@ -105,7 +104,7 @@ void TestFinderModel::cd_into_projects_lists_files() {
     m.cd(m_workspace);
     m.cd(m_workspace + "/Projects");
     QCOMPARE(m.rowCount(), 2);  // train.py, config.yaml
-    QVERIFY(findRow(m, "train.py")    >= 0);
+    QVERIFY(findRow(m, "train.py") >= 0);
     QVERIFY(findRow(m, "config.yaml") >= 0);
 }
 
@@ -135,8 +134,7 @@ void TestFinderModel::filter_narrows_results() {
     const int count = m.setFilter("train");
     QCOMPARE(count, 1);
     QCOMPARE(m.rowCount(), 1);
-    QCOMPARE(m.data(m.index(0, 0), FinderModel::NameRole).toString(),
-             QStringLiteral("train.py"));
+    QCOMPARE(m.data(m.index(0, 0), FinderModel::NameRole).toString(), QStringLiteral("train.py"));
 }
 
 void TestFinderModel::filter_empty_clears() {
@@ -156,10 +154,8 @@ void TestFinderModel::data_roles_round_trip() {
     QVERIFY(row >= 0);
     const auto idx = m.index(row, 0);
 
-    QCOMPARE(m.data(idx, FinderModel::NameRole).toString(),
-             QStringLiteral("train.py"));
-    QVERIFY(m.data(idx, FinderModel::PathRole).toString()
-                .endsWith("/Projects/train.py"));
+    QCOMPARE(m.data(idx, FinderModel::NameRole).toString(), QStringLiteral("train.py"));
+    QVERIFY(m.data(idx, FinderModel::PathRole).toString().endsWith("/Projects/train.py"));
     QCOMPARE(m.data(idx, FinderModel::IsDirRole).toBool(), false);
     QVERIFY(!m.data(idx, FinderModel::MtimeRole).toString().isEmpty());
 }
@@ -190,8 +186,7 @@ void TestFinderModel::kind_classification_correct() {
         m.cd(m_workspace + "/Projects");
         const int row = findRow(m, "train.py");
         QVERIFY(row >= 0);
-        QCOMPARE(m.data(m.index(row, 0), FinderModel::KindRole).toString(),
-                 QStringLiteral("file"));
+        QCOMPARE(m.data(m.index(row, 0), FinderModel::KindRole).toString(), QStringLiteral("file"));
     }
     {
         FinderModel m;
@@ -199,8 +194,7 @@ void TestFinderModel::kind_classification_correct() {
         const int row = findRow(m, "Projects");
         QVERIFY(row >= 0);
         QCOMPARE(m.data(m.index(row, 0), FinderModel::IsDirRole).toBool(), true);
-        QCOMPARE(m.data(m.index(row, 0), FinderModel::KindRole).toString(),
-                 QStringLiteral("dir"));
+        QCOMPARE(m.data(m.index(row, 0), FinderModel::KindRole).toString(), QStringLiteral("dir"));
     }
 }
 
@@ -217,8 +211,7 @@ void TestFinderModel::breadcrumbs_property_chain() {
     // Every crumb must be a prefix of the next and the last must equal cwd.
     QVERIFY(!crumbs.isEmpty());
     QCOMPARE(crumbs.last(), m.currentPath());
-    for (int i = 1; i < crumbs.size(); ++i)
-        QVERIFY(crumbs[i].startsWith(crumbs[i - 1]));
+    for (int i = 1; i < crumbs.size(); ++i) QVERIFY(crumbs[i].startsWith(crumbs[i - 1]));
 }
 
 void TestFinderModel::refresh_picks_up_new_file() {

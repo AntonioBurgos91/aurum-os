@@ -18,16 +18,20 @@ namespace {
 QString classify_row(const QFileInfo& fi) {
     if (fi.isDir()) return "dir";
     switch (aurum::ml::classify(fi.absoluteFilePath())) {
-        case aurum::ml::FileKind::Notebook:    return "notebook";
-        case aurum::ml::FileKind::Safetensors: // fall-through, same UI bucket
-        case aurum::ml::FileKind::Model:       return "model";
-        case aurum::ml::FileKind::Parquet:     // fall-through
-        case aurum::ml::FileKind::Dataset:     return "dataset";
-        default:                               return "file";
+        case aurum::ml::FileKind::Notebook:
+            return "notebook";
+        case aurum::ml::FileKind::Safetensors:  // fall-through, same UI bucket
+        case aurum::ml::FileKind::Model:
+            return "model";
+        case aurum::ml::FileKind::Parquet:  // fall-through
+        case aurum::ml::FileKind::Dataset:
+            return "dataset";
+        default:
+            return "file";
     }
 }
 
-} // namespace
+}  // namespace
 
 FinderModel::FinderModel(QObject* parent) : QAbstractListModel(parent) {
     m_current = QDir::homePath();
@@ -61,7 +65,9 @@ void FinderModel::cdUp() {
     }
 }
 
-void FinderModel::refresh() { reload(); }
+void FinderModel::refresh() {
+    reload();
+}
 
 int FinderModel::setFilter(const QString& needle) {
     m_filter = needle.trimmed();
@@ -75,18 +81,17 @@ void FinderModel::reload() {
     // search field on/off without re-hitting the filesystem.
     m_all_rows.clear();
     QDir dir(m_current);
-    const auto entries = dir.entryInfoList(
-        QDir::AllEntries | QDir::NoDotAndDotDot,
-        QDir::DirsFirst | QDir::Name | QDir::IgnoreCase);
+    const auto entries = dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot,
+                                           QDir::DirsFirst | QDir::Name | QDir::IgnoreCase);
     m_all_rows.reserve(entries.size());
     for (const auto& fi : entries) {
         FileRow r;
-        r.name         = fi.fileName();
+        r.name = fi.fileName();
         r.absolutePath = fi.absoluteFilePath();
-        r.isDir        = fi.isDir();
-        r.size         = fi.size();
-        r.mtimeIso     = fi.lastModified().toString(Qt::ISODate);
-        r.kind         = classify_row(fi);
+        r.isDir = fi.isDir();
+        r.size = fi.size();
+        r.mtimeIso = fi.lastModified().toString(Qt::ISODate);
+        r.kind = classify_row(fi);
         m_all_rows.push_back(std::move(r));
     }
     apply_filter();
@@ -100,8 +105,7 @@ void FinderModel::apply_filter() {
     } else {
         m_rows.reserve(m_all_rows.size());
         for (const auto& r : m_all_rows) {
-            if (r.name.contains(m_filter, Qt::CaseInsensitive))
-                m_rows.push_back(r);
+            if (r.name.contains(m_filter, Qt::CaseInsensitive)) m_rows.push_back(r);
         }
     }
     endResetModel();
@@ -112,28 +116,29 @@ int FinderModel::rowCount(const QModelIndex& parent) const {
 }
 
 QVariant FinderModel::data(const QModelIndex& index, int role) const {
-    if (!index.isValid() || index.row() < 0 || index.row() >= m_rows.size())
-        return {};
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_rows.size()) return {};
     const auto& r = m_rows[index.row()];
     switch (role) {
-        case NameRole:    return r.name;
-        case PathRole:    return r.absolutePath;
-        case IsDirRole:   return r.isDir;
-        case SizeRole:    return static_cast<qlonglong>(r.size);
-        case MtimeRole:   return r.mtimeIso;
-        case KindRole:    return r.kind;
+        case NameRole:
+            return r.name;
+        case PathRole:
+            return r.absolutePath;
+        case IsDirRole:
+            return r.isDir;
+        case SizeRole:
+            return static_cast<qlonglong>(r.size);
+        case MtimeRole:
+            return r.mtimeIso;
+        case KindRole:
+            return r.kind;
     }
     return {};
 }
 
 QHash<int, QByteArray> FinderModel::roleNames() const {
     return {
-        {NameRole,  "name"},
-        {PathRole,  "absolutePath"},
-        {IsDirRole, "isDir"},
-        {SizeRole,  "size"},
-        {MtimeRole, "mtime"},
-        {KindRole,  "kind"},
+        {NameRole, "name"}, {PathRole, "absolutePath"}, {IsDirRole, "isDir"},
+        {SizeRole, "size"}, {MtimeRole, "mtime"},       {KindRole, "kind"},
     };
 }
 
@@ -147,4 +152,4 @@ QVariant FinderModel::previewJson(int row) {
     return QString::fromUtf8(QJsonDocument(preview).toJson(QJsonDocument::Compact));
 }
 
-} // namespace aurum::finder
+}  // namespace aurum::finder

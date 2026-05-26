@@ -13,12 +13,12 @@ namespace aurum::finder {
 // One entry in the file list: name + size + mtime + a coarse kind so the QML
 // side can pick an icon and a Quick Look backend.
 struct FileRow {
-    QString  name;
-    QString  absolutePath;
-    bool     isDir = false;
-    qint64   size = 0;
-    QString  mtimeIso;
-    QString  kind;   // "dir" | "notebook" | "model" | "dataset" | "file"
+    QString name;
+    QString absolutePath;
+    bool isDir = false;
+    qint64 size = 0;
+    QString mtimeIso;
+    QString kind;  // "dir" | "notebook" | "model" | "dataset" | "file"
 };
 
 // Browse-style model: holds the current directory's children and exposes them
@@ -45,7 +45,9 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    QString currentPath() const { return m_current; }
+    QString currentPath() const {
+        return m_current;
+    }
     QStringList breadcrumbs() const;
 
     Q_INVOKABLE void cd(const QString& path);
@@ -63,12 +65,12 @@ signals:
 
 private:
     void reload();
-    void apply_filter();   // rebuilds m_visible from m_all_rows + m_filter
+    void apply_filter();  // rebuilds m_visible from m_all_rows + m_filter
 
     QString m_current;
     QString m_filter;
-    QVector<FileRow> m_all_rows;   // every entry from the disk listing
-    QVector<FileRow> m_rows;       // currently visible (possibly filtered)
+    QVector<FileRow> m_all_rows;  // every entry from the disk listing
+    QVector<FileRow> m_rows;      // currently visible (possibly filtered)
 };
 
-} // namespace aurum::finder
+}  // namespace aurum::finder

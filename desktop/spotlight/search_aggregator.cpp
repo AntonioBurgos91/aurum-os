@@ -6,7 +6,6 @@
 #include <QJsonObject>
 #include <QUrl>
 #include <QVariantMap>
-
 #include <algorithm>
 
 #include "core_services.h"
@@ -18,15 +17,14 @@ SearchAggregator::SearchAggregator(QObject* parent) : QObject(parent) {}
 void SearchAggregator::addPlugin(SpotlightPlugin* p) {
     p->setParent(this);
     m_plugins.push_back(p);
-    connect(p, &SpotlightPlugin::resultsReady,
-            this, &SearchAggregator::onPluginResults);
+    connect(p, &SpotlightPlugin::resultsReady, this, &SearchAggregator::onPluginResults);
 }
 
 void SearchAggregator::setQuery(const QString& q) {
     ++m_generation;
     m_results.clear();
     for (auto* p : m_plugins) p->search(q, m_generation);
-    rebuildGroups(); // emit empty groups immediately so the UI clears
+    rebuildGroups();  // emit empty groups immediately so the UI clears
 }
 
 void SearchAggregator::onPluginResults(QString pluginId, int generation, QJsonArray rows) {
@@ -41,16 +39,16 @@ void SearchAggregator::rebuildGroups() {
     // group { id, title, rows }.
     QVector<SpotlightPlugin*> sorted = m_plugins;
     std::sort(sorted.begin(), sorted.end(),
-        [](SpotlightPlugin* a, SpotlightPlugin* b) { return a->priority() < b->priority(); });
+              [](SpotlightPlugin* a, SpotlightPlugin* b) { return a->priority() < b->priority(); });
 
     QVariantList groups;
     for (auto* p : sorted) {
         const auto& rows = m_results.value(p->id());
         if (rows.isEmpty()) continue;
         groups.append(QVariantMap{
-            {"id",    p->id()},
+            {"id", p->id()},
             {"title", p->displayName()},
-            {"rows",  rows.toVariantList()},
+            {"rows", rows.toVariantList()},
         });
     }
     m_groups_cached = groups;
@@ -82,4 +80,4 @@ bool SearchAggregator::activate(const QVariantMap& action) {
     return false;
 }
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

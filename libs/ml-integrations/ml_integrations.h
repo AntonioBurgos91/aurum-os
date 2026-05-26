@@ -12,11 +12,11 @@ namespace aurum::ml {
 // which preview backend is invoked.
 enum class FileKind {
     Unknown,
-    Notebook,      // .ipynb
-    Safetensors,   // .safetensors
-    Parquet,       // .parquet / .arrow / .feather
-    Model,         // .pt / .gguf / .onnx / .bin / .ckpt
-    Dataset,       // .csv / .tsv / .jsonl
+    Notebook,     // .ipynb
+    Safetensors,  // .safetensors
+    Parquet,      // .parquet / .arrow / .feather
+    Model,        // .pt / .gguf / .onnx / .bin / .ckpt
+    Dataset,      // .csv / .tsv / .jsonl
 };
 
 FileKind classify(const QString& path);
@@ -29,7 +29,8 @@ FileKind classify(const QString& path);
 // notebook: { metadata: {...}, cells: [ {type, source, output_summary} ] }
 QJsonObject preview_notebook(const QString& path, int max_cells = 12);
 
-// safetensors: { total_tensors, total_params, dtypes:[...], tensors:[{name,dtype,shape,offset_bytes}] }
+// safetensors: { total_tensors, total_params, dtypes:[...],
+// tensors:[{name,dtype,shape,offset_bytes}] }
 QJsonObject preview_safetensors(const QString& path, int max_tensors = 24);
 
 // parquet: { schema:[{name,type}], rows: N, head: [[...]] }  (uses python helper)
@@ -41,7 +42,7 @@ QJsonObject preview(const QString& path);
 
 void init_ml_integrations();
 
-} // namespace aurum::ml
+}  // namespace aurum::ml
 
 // C-linkage shim kept for legacy main.cpp callers.
 extern "C" void init_ml_integrations();

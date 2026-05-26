@@ -15,10 +15,9 @@ namespace {
 // Returns an empty string when the query does not opt into the HF plugin.
 QString stripTrigger(QString q) {
     q = q.trimmed();
-    for (const auto& prefix : {QStringLiteral("hf:"), QStringLiteral("hf "),
-                               QStringLiteral("model:")}) {
-        if (q.startsWith(prefix, Qt::CaseInsensitive))
-            return q.mid(prefix.size()).trimmed();
+    for (const auto& prefix :
+         {QStringLiteral("hf:"), QStringLiteral("hf "), QStringLiteral("model:")}) {
+        if (q.startsWith(prefix, Qt::CaseInsensitive)) return q.mid(prefix.size()).trimmed();
     }
     return {};
 }
@@ -30,29 +29,30 @@ QJsonArray parseModels(const QByteArray& body) {
     const auto arr = doc.array();
     for (const auto& v : arr) {
         const auto m = v.toObject();
-        const auto id_full   = m.value("id").toString();
+        const auto id_full = m.value("id").toString();
         const auto downloads = m.value("downloads").toInt();
-        const auto likes     = m.value("likes").toInt();
-        const auto pipeline  = m.value("pipeline_tag").toString();
+        const auto likes = m.value("likes").toInt();
+        const auto pipeline = m.value("pipeline_tag").toString();
 
         rows.append(QJsonObject{
-            {"title",    id_full},
+            {"title", id_full},
             {"subtitle", QString("%1  ·  ⬇ %2  ·  ♡ %3")
-                            .arg(pipeline.isEmpty() ? QStringLiteral("model") : pipeline)
-                            .arg(downloads)
-                            .arg(likes)},
-            {"icon",     "applications-science"},
-            {"score",    1.0},
-            {"action",   QJsonObject{
-                {"type", "open_url"},
-                {"url",  "https://huggingface.co/" + id_full},
-            }},
+                             .arg(pipeline.isEmpty() ? QStringLiteral("model") : pipeline)
+                             .arg(downloads)
+                             .arg(likes)},
+            {"icon", "applications-science"},
+            {"score", 1.0},
+            {"action",
+             QJsonObject{
+                 {"type", "open_url"},
+                 {"url", "https://huggingface.co/" + id_full},
+             }},
         });
     }
     return rows;
 }
 
-} // namespace
+}  // namespace
 
 HuggingFacePlugin::HuggingFacePlugin(QObject* parent) : SpotlightPlugin(parent) {
     // 250 ms debounce: typing "hf bert-base" shouldn't fire one request per
@@ -62,13 +62,16 @@ HuggingFacePlugin::HuggingFacePlugin(QObject* parent) : SpotlightPlugin(parent) 
     m_debounce.setInterval(250);
     connect(&m_debounce, &QTimer::timeout, this, [this] {
         const QString q = m_pendingQuery;
-        const int gen   = m_pendingGeneration;
-        if (q.isEmpty()) { emit resultsReady(id(), gen, {}); return; }
+        const int gen = m_pendingGeneration;
+        if (q.isEmpty()) {
+            emit resultsReady(id(), gen, {});
+            return;
+        }
 
         QUrl url("https://huggingface.co/api/models");
         QUrlQuery qs;
         qs.addQueryItem("search", q);
-        qs.addQueryItem("limit",  "8");
+        qs.addQueryItem("limit", "8");
         url.setQuery(qs);
 
         QNetworkRequest req(url);
@@ -77,8 +80,7 @@ HuggingFacePlugin::HuggingFacePlugin(QObject* parent) : SpotlightPlugin(parent) 
 
         auto* reply = m_net.get(req);
         reply->setProperty("generation", gen);
-        connect(reply, &QNetworkReply::finished,
-                this,  &HuggingFacePlugin::onReplyFinished);
+        connect(reply, &QNetworkReply::finished, this, &HuggingFacePlugin::onReplyFinished);
     });
 }
 
@@ -105,4 +107,4 @@ void HuggingFacePlugin::onReplyFinished() {
     emit resultsReady(id(), gen, parseModels(reply->readAll()));
 }
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

@@ -34,32 +34,32 @@ namespace aurum::settings {
 // the gadget is handy for the install/remove dialogs and single-pack views.
 class ModelPack {
     Q_GADGET
-    Q_PROPERTY(QString id          MEMBER id)
-    Q_PROPERTY(QString title       MEMBER title)
+    Q_PROPERTY(QString id MEMBER id)
+    Q_PROPERTY(QString title MEMBER title)
     Q_PROPERTY(QString description MEMBER description)
-    Q_PROPERTY(qint64  sizeBytes   MEMBER sizeBytes)
-    Q_PROPERTY(QString minProfile  MEMBER minProfile)
-    Q_PROPERTY(QString docsUrl     MEMBER docsUrl)
-    Q_PROPERTY(QString state       MEMBER state)
-    Q_PROPERTY(int     progress    MEMBER progress)
-    Q_PROPERTY(QString lastError   MEMBER lastError)
+    Q_PROPERTY(qint64 sizeBytes MEMBER sizeBytes)
+    Q_PROPERTY(QString minProfile MEMBER minProfile)
+    Q_PROPERTY(QString docsUrl MEMBER docsUrl)
+    Q_PROPERTY(QString state MEMBER state)
+    Q_PROPERTY(int progress MEMBER progress)
+    Q_PROPERTY(QString lastError MEMBER lastError)
 
 public:
     QString id;
     QString title;
     QString description;
-    qint64  sizeBytes = 0;
+    qint64 sizeBytes = 0;
     QString minProfile;  // lite | standard | pro | workstation
     QString docsUrl;
-    QString state = "not_installed"; // not_installed | installed | installing | error
-    int     progress = 0;
+    QString state = "not_installed";  // not_installed | installed | installing | error
+    int progress = 0;
     QString lastError;
 };
 
 class ModelPacksModel : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(QString currentProfile READ currentProfile NOTIFY currentProfileChanged)
-    Q_PROPERTY(int     count          READ rowCount       NOTIFY countChanged)
+    Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
 public:
     enum Roles {
@@ -85,7 +85,9 @@ public:
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    QString currentProfile() const { return m_currentProfile; }
+    QString currentProfile() const {
+        return m_currentProfile;
+    }
 
     // --- QML-callable actions ------------------------------------------------
     Q_INVOKABLE void refresh();
@@ -94,9 +96,9 @@ public:
 
     // Cache management (delegates to the CLI for accurate accounting, but
     // also falls back to a directory walk if the CLI is unavailable).
-    Q_INVOKABLE qint64  cacheSize();
+    Q_INVOKABLE qint64 cacheSize();
     Q_INVOKABLE QString cachePath() const;
-    Q_INVOKABLE void    clearCache();
+    Q_INVOKABLE void clearCache();
 
     // Utility for QML: pretty-print byte counts ("12.0 GB", "850 MB").
     Q_INVOKABLE QString humanSize(qint64 bytes) const;
@@ -118,29 +120,29 @@ private slots:
 
 private:
     static constexpr const char* kManifestDir = "/etc/aurum/model-packs";
-    static constexpr const char* kCliBinary   = "aurum-model-pack";
+    static constexpr const char* kCliBinary = "aurum-model-pack";
     static constexpr const char* kProfileConf = "/etc/aurum/profile.conf";
 
-    void   scanManifests();
-    void   detectProfile();
-    int    indexOf(const QString& packId) const;
-    void   emitDataChanged(int row);
-    void   handleProgressLine(const QByteArray& line);
+    void scanManifests();
+    void detectProfile();
+    int indexOf(const QString& packId) const;
+    void emitDataChanged(int row);
+    void handleProgressLine(const QByteArray& line);
     static int profileRank(const QString& profile);
     static QString defaultCachePath();
 
     QVector<ModelPack> m_packs;
-    QString            m_currentProfile = "standard";
+    QString m_currentProfile = "standard";
 
     // The set of running install/remove subprocesses, keyed by pack id.
     // Removal is synchronous (fast); only install is tracked here. The
     // QProcess is parented to `this`, deleted on finish.
     struct RunningJob {
         QProcess* proc = nullptr;
-        QByteArray buf; // line-buffer for stdout
-        QString    op;  // "install" or "remove"
+        QByteArray buf;  // line-buffer for stdout
+        QString op;      // "install" or "remove"
     };
     QHash<QString, RunningJob> m_jobs;
 };
 
-} // namespace aurum::settings
+}  // namespace aurum::settings

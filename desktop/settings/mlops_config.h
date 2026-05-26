@@ -20,18 +20,28 @@ namespace aurum::settings {
 //   entity  = ""
 class MlopsConfig : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QString mlflowTrackingUri READ mlflowTrackingUri WRITE setMlflowTrackingUri NOTIFY changed)
-    Q_PROPERTY(QString mlflowExperiment  READ mlflowExperiment  WRITE setMlflowExperiment  NOTIFY changed)
-    Q_PROPERTY(QString wandbApiKey       READ wandbApiKey       WRITE setWandbApiKey       NOTIFY changed)
-    Q_PROPERTY(QString wandbEntity       READ wandbEntity       WRITE setWandbEntity       NOTIFY changed)
+    Q_PROPERTY(
+        QString mlflowTrackingUri READ mlflowTrackingUri WRITE setMlflowTrackingUri NOTIFY changed)
+    Q_PROPERTY(
+        QString mlflowExperiment READ mlflowExperiment WRITE setMlflowExperiment NOTIFY changed)
+    Q_PROPERTY(QString wandbApiKey READ wandbApiKey WRITE setWandbApiKey NOTIFY changed)
+    Q_PROPERTY(QString wandbEntity READ wandbEntity WRITE setWandbEntity NOTIFY changed)
 
 public:
     explicit MlopsConfig(QObject* parent = nullptr);
 
-    QString mlflowTrackingUri() const { return m_mlflowTrackingUri; }
-    QString mlflowExperiment()  const { return m_mlflowExperiment; }
-    QString wandbApiKey()       const { return m_wandbApiKey; }
-    QString wandbEntity()       const { return m_wandbEntity; }
+    QString mlflowTrackingUri() const {
+        return m_mlflowTrackingUri;
+    }
+    QString mlflowExperiment() const {
+        return m_mlflowExperiment;
+    }
+    QString wandbApiKey() const {
+        return m_wandbApiKey;
+    }
+    QString wandbEntity() const {
+        return m_wandbEntity;
+    }
 
     void setMlflowTrackingUri(const QString& v);
     void setMlflowExperiment(const QString& v);
@@ -53,4 +63,4 @@ private:
     QString m_wandbEntity;
 };
 
-} // namespace aurum::settings
+}  // namespace aurum::settings

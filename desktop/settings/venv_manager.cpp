@@ -32,11 +32,13 @@ bool is_system_locked(const QString& path) {
 
 QString uv_binary() {
     static const QStringList candidates = {
-        "/usr/local/bin/uv", "/usr/bin/uv",
+        "/usr/local/bin/uv",
+        "/usr/bin/uv",
         QDir::homePath() + "/.local/bin/uv",
     };
-    for (const auto& c : candidates) if (QFile::exists(c)) return c;
-    return "uv"; // last resort: rely on PATH
+    for (const auto& c : candidates)
+        if (QFile::exists(c)) return c;
+    return "uv";  // last resort: rely on PATH
 }
 
 QString resolve_python_version(const QString& venv_dir) {
@@ -64,13 +66,15 @@ quint64 directory_size_bytes(const QString& root) {
     return sum;
 }
 
-} // namespace
+}  // namespace
 
 VenvManager::VenvManager(QObject* parent) : QObject(parent) {
     scan();
 }
 
-QStringList VenvManager::scan_roots() const { return default_roots(); }
+QStringList VenvManager::scan_roots() const {
+    return default_roots();
+}
 
 QStringList VenvManager::availablePythons() const {
     // We could call `uv python list` here but parsing its output adds friction
@@ -79,26 +83,27 @@ QStringList VenvManager::availablePythons() const {
     return {"3.13", "3.12", "3.11", "3.10"};
 }
 
-void VenvManager::refresh() { scan(); }
+void VenvManager::refresh() {
+    scan();
+}
 
 void VenvManager::scan() {
     m_venvs.clear();
     for (const auto& root : scan_roots()) {
         QDir dir(root);
         if (!dir.exists()) continue;
-        const auto entries = dir.entryInfoList(
-            QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        const auto entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
         for (const auto& fi : entries) {
             const QString candidate = fi.absoluteFilePath();
             if (!QFile::exists(candidate + "/bin/python")) continue;
 
             m_venvs << QVariantMap{
-                {"name",        fi.fileName()},
-                {"path",        candidate},
-                {"pythonVer",   resolve_python_version(candidate)},
-                {"sizeMB",      static_cast<qint64>(directory_size_bytes(candidate) / (1024*1024))},
-                {"locked",      is_system_locked(candidate)},
-                {"createdAt",   fi.birthTime().toString(Qt::ISODate)},
+                {"name", fi.fileName()},
+                {"path", candidate},
+                {"pythonVer", resolve_python_version(candidate)},
+                {"sizeMB", static_cast<qint64>(directory_size_bytes(candidate) / (1024 * 1024))},
+                {"locked", is_system_locked(candidate)},
+                {"createdAt", fi.birthTime().toString(Qt::ISODate)},
             };
         }
     }
@@ -164,4 +169,4 @@ bool VenvManager::deleteVenv(const QString& path) {
     return true;
 }
 
-} // namespace aurum::settings
+}  // namespace aurum::settings

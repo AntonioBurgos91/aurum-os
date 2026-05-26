@@ -14,8 +14,8 @@ use tokio::sync::mpsc;
 
 #[derive(Debug)]
 pub enum FsChange {
-    Touched(PathBuf),  // create / modify / data write
-    Removed(PathBuf),  // delete / rename-away
+    Touched(PathBuf), // create / modify / data write
+    Removed(PathBuf), // delete / rename-away
 }
 
 pub struct WatchHandle {
@@ -33,16 +33,22 @@ pub fn watch(roots: &[PathBuf]) -> notify::Result<WatchHandle> {
         let Ok(event) = res else { return };
 
         // Some kinds we want to ignore wholesale (access-time updates etc.).
-        let push = |c: FsChange| { let _ = tx.send(c); };
+        let push = |c: FsChange| {
+            let _ = tx.send(c);
+        };
 
         match event.kind {
             EventKind::Create(_)
             | EventKind::Modify(ModifyKind::Data(_))
             | EventKind::Modify(ModifyKind::Name(_)) => {
-                for p in event.paths { push(FsChange::Touched(p)); }
+                for p in event.paths {
+                    push(FsChange::Touched(p));
+                }
             }
             EventKind::Remove(_) => {
-                for p in event.paths { push(FsChange::Removed(p)); }
+                for p in event.paths {
+                    push(FsChange::Removed(p));
+                }
             }
             _ => {}
         }
@@ -56,5 +62,8 @@ pub fn watch(roots: &[PathBuf]) -> notify::Result<WatchHandle> {
         watcher.watch(root, RecursiveMode::Recursive)?;
     }
 
-    Ok(WatchHandle { _watcher: watcher, rx })
+    Ok(WatchHandle {
+        _watcher: watcher,
+        rx,
+    })
 }

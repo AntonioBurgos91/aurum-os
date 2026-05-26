@@ -43,4 +43,4 @@ signals:
     void resultsReady(QString pluginId, int generation, QJsonArray rows);
 };
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

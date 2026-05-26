@@ -27,7 +27,7 @@ QString unquote(QString s) {
     return s;
 }
 
-} // namespace
+}  // namespace
 
 ProfileClient& ProfileClient::instance() {
     // Meyers singleton — thread-safe init since C++11. The destructor never
@@ -55,11 +55,11 @@ void ProfileClient::parse(const QString& path) {
         // Seed a minimal map so callers don't return empty strings out of
         // nowhere; the UI then shows "lite" and the launchers degrade to
         // their safest path.
-        m_kv["AURUM_PROFILE"]   = "lite";
-        m_kv["AURUM_VRAM_MB"]   = "0";
-        m_kv["AURUM_RAM_GB"]    = "0";
-        m_kv["AURUM_GPU_NAME"]  = "none";
-        m_kv["AURUM_HAS_CUDA"]  = "0";
+        m_kv["AURUM_PROFILE"] = "lite";
+        m_kv["AURUM_VRAM_MB"] = "0";
+        m_kv["AURUM_RAM_GB"] = "0";
+        m_kv["AURUM_GPU_NAME"] = "none";
+        m_kv["AURUM_HAS_CUDA"] = "0";
         return;
     }
 
@@ -70,7 +70,7 @@ void ProfileClient::parse(const QString& path) {
         if (trimmed.isEmpty() || trimmed.startsWith('#')) continue;
 
         const int eq = line.indexOf('=');
-        if (eq <= 0) continue;        // no key, or "=value" with empty key
+        if (eq <= 0) continue;  // no key, or "=value" with empty key
 
         const QString key = line.left(eq).trimmed();
         const QString val = unquote(line.mid(eq + 1));
@@ -116,4 +116,4 @@ void ProfileClient::reload() {
     parse(m_path);
 }
 
-} // namespace aurum
+}  // namespace aurum

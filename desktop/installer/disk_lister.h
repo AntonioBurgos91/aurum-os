@@ -17,7 +17,9 @@ class DiskLister : public QObject {
 public:
     explicit DiskLister(QObject* parent = nullptr);
 
-    QVariantList disks() const { return m_disks; }
+    QVariantList disks() const {
+        return m_disks;
+    }
 
     Q_INVOKABLE void refresh();
 
@@ -28,4 +30,4 @@ private:
     QVariantList m_disks;
 };
 
-} // namespace aurum::installer
+}  // namespace aurum::installer

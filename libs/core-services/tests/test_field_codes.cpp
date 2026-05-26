@@ -22,8 +22,7 @@ private slots:
 
 void TestFieldCodes::strips_single_url_code() {
     // The trailing "%u" plus space collapses cleanly via simplified().
-    QCOMPARE(strip_field_codes(QStringLiteral("firefox %u")),
-             QStringLiteral("firefox"));
+    QCOMPARE(strip_field_codes(QStringLiteral("firefox %u")), QStringLiteral("firefox"));
 }
 
 void TestFieldCodes::strips_multi_file_code() {
@@ -39,8 +38,7 @@ void TestFieldCodes::strips_inline_icon_code() {
 }
 
 void TestFieldCodes::leaves_clean_command_unchanged() {
-    QCOMPARE(strip_field_codes(QStringLiteral("app")),
-             QStringLiteral("app"));
+    QCOMPARE(strip_field_codes(QStringLiteral("app")), QStringLiteral("app"));
 }
 
 void TestFieldCodes::empty_input_yields_empty() {
@@ -52,8 +50,7 @@ void TestFieldCodes::strips_all_known_codes() {
     // Every code listed in the regex character class, in one go. After
     // removal we're left with "app" plus a run of spaces that simplified()
     // collapses to nothing trailing.
-    QCOMPARE(strip_field_codes(
-                 QStringLiteral("app %f %u %F %U %i %c %k %d %D %n %N %v %m")),
+    QCOMPARE(strip_field_codes(QStringLiteral("app %f %u %F %U %i %c %k %d %D %n %N %v %m")),
              QStringLiteral("app"));
 }
 

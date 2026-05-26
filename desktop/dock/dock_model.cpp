@@ -14,13 +14,13 @@ namespace {
 // Default pinned apps if the user has no ~/.config/aurum/dock.list yet.
 // Aligned with the apps shipped on the ISO (terminal, editor, browser, etc.).
 const QStringList kDefaultFavorites = {
-    "ghostty",              // terminal
-    "dev.zed.Zed",          // editor
-    "firefox",              // browser fallback
-    "aurum-finder",         // file manager
-    "aurum-jupyterlab",     // ships in distro/applications/
-    "aurum-marimo",         // ships in distro/applications/
-    "aurum-ollama",         // ships in distro/applications/
+    "ghostty",           // terminal
+    "dev.zed.Zed",       // editor
+    "firefox",           // browser fallback
+    "aurum-finder",      // file manager
+    "aurum-jupyterlab",  // ships in distro/applications/
+    "aurum-marimo",      // ships in distro/applications/
+    "aurum-ollama",      // ships in distro/applications/
     "aurum-settings",
 };
 
@@ -28,8 +28,7 @@ QString themed_icon_url(const QString& icon_name) {
     if (icon_name.isEmpty()) return {};
 
     // Absolute path passed through.
-    if (icon_name.startsWith('/'))
-        return QUrl::fromLocalFile(icon_name).toString();
+    if (icon_name.startsWith('/')) return QUrl::fromLocalFile(icon_name).toString();
 
     QIcon icon = QIcon::fromTheme(icon_name);
     if (icon.isNull()) return {};
@@ -39,14 +38,16 @@ QString themed_icon_url(const QString& icon_name) {
     const auto sizes = icon.availableSizes();
     QSize target(64, 64);
     for (const auto& s : sizes) {
-        if (s.width() >= 64 && s.width() <= 256) { target = s; break; }
+        if (s.width() >= 64 && s.width() <= 256) {
+            target = s;
+            break;
+        }
     }
 
     // Convert the QPixmap into a temporary file: QML can't load directly from
     // a QIcon, and image://theme/ providers require extra registration plumbing
     // we don't need yet. A short-lived file under XDG_RUNTIME_DIR is fine.
-    const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR",
-                                                 QDir::tempPath());
+    const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR", QDir::tempPath());
     const QString cache_dir = runtime + "/aurum-dock-icons";
     QDir().mkpath(cache_dir);
     const QString out = QString("%1/%2.png").arg(cache_dir, icon_name);
@@ -56,21 +57,19 @@ QString themed_icon_url(const QString& icon_name) {
     return QUrl::fromLocalFile(out).toString();
 }
 
-} // namespace
+}  // namespace
 
 DockModel::DockModel(QObject* parent) : QAbstractListModel(parent) {
     rebuild();
 }
 
 QStringList DockModel::load_favorite_ids() const {
-    const QString config_home = qEnvironmentVariable(
-        "XDG_CONFIG_HOME",
-        QDir::homePath() + "/.config");
+    const QString config_home =
+        qEnvironmentVariable("XDG_CONFIG_HOME", QDir::homePath() + "/.config");
     const QString path = config_home + "/aurum/dock.list";
 
     QFile f(path);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return kDefaultFavorites;
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return kDefaultFavorites;
 
     QStringList out;
     QTextStream in(&f);
@@ -87,41 +86,44 @@ void DockModel::rebuild() {
     m_entries.clear();
     for (const auto& id : load_favorite_ids()) {
         auto e = aurum::core::lookup_desktop_entry(id);
-        if (!e.isValid()) continue; // missing app — skip silently
+        if (!e.isValid()) continue;  // missing app — skip silently
         m_entries.push_back(e);
     }
     endResetModel();
 }
 
-void DockModel::reload() { rebuild(); }
+void DockModel::reload() {
+    rebuild();
+}
 
 int DockModel::rowCount(const QModelIndex& parent) const {
     return parent.isValid() ? 0 : m_entries.size();
 }
 
 QVariant DockModel::data(const QModelIndex& index, int role) const {
-    if (!index.isValid() || index.row() < 0 || index.row() >= m_entries.size())
-        return {};
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_entries.size()) return {};
     const auto& e = m_entries[index.row()];
     switch (role) {
-        case IdRole:        return e.id;
-        case NameRole:      return e.name.isEmpty() ? e.id : e.name;
-        case IconNameRole:  return e.icon;
-        case IconUrlRole:   return themed_icon_url(e.icon);
-        case ExecRole:      return e.exec;
-        case IsRunningRole: return false; // Phase 3: foreign-toplevel hookup.
+        case IdRole:
+            return e.id;
+        case NameRole:
+            return e.name.isEmpty() ? e.id : e.name;
+        case IconNameRole:
+            return e.icon;
+        case IconUrlRole:
+            return themed_icon_url(e.icon);
+        case ExecRole:
+            return e.exec;
+        case IsRunningRole:
+            return false;  // Phase 3: foreign-toplevel hookup.
     }
     return {};
 }
 
 QHash<int, QByteArray> DockModel::roleNames() const {
     return {
-        {IdRole,        "appId"},
-        {NameRole,      "name"},
-        {IconNameRole,  "iconName"},
-        {IconUrlRole,   "iconUrl"},
-        {ExecRole,      "execLine"},
-        {IsRunningRole, "isRunning"},
+        {IdRole, "appId"},        {NameRole, "name"},     {IconNameRole, "iconName"},
+        {IconUrlRole, "iconUrl"}, {ExecRole, "execLine"}, {IsRunningRole, "isRunning"},
     };
 }
 
@@ -130,4 +132,4 @@ void DockModel::launch(int row) {
     aurum::core::launch_desktop_entry(m_entries[row]);
 }
 
-} // namespace aurum::dock
+}  // namespace aurum::dock

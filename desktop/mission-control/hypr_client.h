@@ -13,15 +13,21 @@ namespace aurum::mc {
 class HyprClient : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantList workspaces READ workspaces NOTIFY refreshed)
-    Q_PROPERTY(QVariantList clients    READ clients    NOTIFY refreshed)
-    Q_PROPERTY(int activeWorkspaceId   READ activeWorkspaceId NOTIFY refreshed)
+    Q_PROPERTY(QVariantList clients READ clients NOTIFY refreshed)
+    Q_PROPERTY(int activeWorkspaceId READ activeWorkspaceId NOTIFY refreshed)
 
 public:
     explicit HyprClient(QObject* parent = nullptr);
 
-    QVariantList workspaces() const { return m_workspaces; }
-    QVariantList clients() const    { return m_clients; }
-    int activeWorkspaceId() const   { return m_active; }
+    QVariantList workspaces() const {
+        return m_workspaces;
+    }
+    QVariantList clients() const {
+        return m_clients;
+    }
+    int activeWorkspaceId() const {
+        return m_active;
+    }
 
     Q_INVOKABLE void refresh();
 
@@ -40,7 +46,7 @@ private:
 
     QVariantList m_workspaces;
     QVariantList m_clients;
-    int          m_active = -1;
+    int m_active = -1;
 };
 
-} // namespace aurum::mc
+}  // namespace aurum::mc

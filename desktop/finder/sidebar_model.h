@@ -41,4 +41,4 @@ private:
     QVector<SidebarEntry> m_rows;
 };
 
-} // namespace aurum::finder
+}  // namespace aurum::finder

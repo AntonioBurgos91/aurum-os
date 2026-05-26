@@ -17,10 +17,16 @@ class ArxivPlugin : public SpotlightPlugin {
 public:
     explicit ArxivPlugin(QObject* parent = nullptr);
 
-    QString id() const override          { return "arxiv"; }
-    QString displayName() const override { return "arXiv"; }
-    int     priority() const override    { return 4; }
-    void    search(const QString& query, int generation) override;
+    QString id() const override {
+        return "arxiv";
+    }
+    QString displayName() const override {
+        return "arXiv";
+    }
+    int priority() const override {
+        return 4;
+    }
+    void search(const QString& query, int generation) override;
 
 private slots:
     void onReplyFinished();
@@ -32,4 +38,4 @@ private:
     int m_pendingGeneration = -1;
 };
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

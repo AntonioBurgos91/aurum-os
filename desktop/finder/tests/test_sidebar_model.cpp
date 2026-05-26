@@ -4,10 +4,10 @@
 //
 // SidebarModel only includes entries whose paths actually exist on disk —
 // that's the bit worth pinning down here.
-#include <QtTest>
-#include <QTemporaryDir>
 #include <QDir>
 #include <QStandardPaths>
+#include <QTemporaryDir>
+#include <QtTest>
 
 #include "sidebar_model.h"
 
@@ -27,9 +27,9 @@ private slots:
 
 private:
     QTemporaryDir m_tmp;
-    QByteArray    m_prev_home;
-    QByteArray    m_prev_xdg_data_home;
-    QByteArray    m_prev_xdg_config_home;
+    QByteArray m_prev_home;
+    QByteArray m_prev_xdg_data_home;
+    QByteArray m_prev_xdg_config_home;
 
     int rowsInSection(SidebarModel& m, const QString& section) const;
 };
@@ -38,12 +38,12 @@ void TestSidebarModel::initTestCase() {
     QVERIFY(m_tmp.isValid());
 
     // Capture so cleanupTestCase can restore.
-    m_prev_home            = qgetenv("HOME");
-    m_prev_xdg_data_home   = qgetenv("XDG_DATA_HOME");
+    m_prev_home = qgetenv("HOME");
+    m_prev_xdg_data_home = qgetenv("XDG_DATA_HOME");
     m_prev_xdg_config_home = qgetenv("XDG_CONFIG_HOME");
 
     qputenv("HOME", m_tmp.path().toUtf8());
-    qputenv("XDG_DATA_HOME",   (m_tmp.path() + "/.local/share").toUtf8());
+    qputenv("XDG_DATA_HOME", (m_tmp.path() + "/.local/share").toUtf8());
     qputenv("XDG_CONFIG_HOME", (m_tmp.path() + "/.config").toUtf8());
 
     // QStandardPaths caches results; force a reload now that HOME has changed.
@@ -52,16 +52,15 @@ void TestSidebarModel::initTestCase() {
 
 void TestSidebarModel::cleanupTestCase() {
     QStandardPaths::setTestModeEnabled(false);
-    if (!m_prev_home.isEmpty())            qputenv("HOME", m_prev_home);
-    if (!m_prev_xdg_data_home.isEmpty())   qputenv("XDG_DATA_HOME", m_prev_xdg_data_home);
+    if (!m_prev_home.isEmpty()) qputenv("HOME", m_prev_home);
+    if (!m_prev_xdg_data_home.isEmpty()) qputenv("XDG_DATA_HOME", m_prev_xdg_data_home);
     if (!m_prev_xdg_config_home.isEmpty()) qputenv("XDG_CONFIG_HOME", m_prev_xdg_config_home);
 }
 
 int TestSidebarModel::rowsInSection(SidebarModel& m, const QString& section) const {
     int n = 0;
     for (int i = 0; i < m.rowCount(); ++i) {
-        if (m.data(m.index(i, 0), SidebarModel::SectionRole).toString() == section)
-            ++n;
+        if (m.data(m.index(i, 0), SidebarModel::SectionRole).toString() == section) ++n;
     }
     return n;
 }
@@ -77,11 +76,9 @@ void TestSidebarModel::names_are_non_empty_strings() {
     SidebarModel m;
     for (int i = 0; i < m.rowCount(); ++i) {
         const QString name = m.data(m.index(i, 0), SidebarModel::NameRole).toString();
-        QVERIFY2(!name.isEmpty(),
-                 qPrintable(QString("empty name at row %1").arg(i)));
+        QVERIFY2(!name.isEmpty(), qPrintable(QString("empty name at row %1").arg(i)));
         const QString path = m.data(m.index(i, 0), SidebarModel::PathRole).toString();
-        QVERIFY2(!path.isEmpty(),
-                 qPrintable(QString("empty path at row %1").arg(i)));
+        QVERIFY2(!path.isEmpty(), qPrintable(QString("empty path at row %1").arg(i)));
     }
 }
 

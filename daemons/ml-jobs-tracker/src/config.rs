@@ -9,36 +9,47 @@ use serde::Deserialize;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Config {
-    #[serde(default)] pub mlflow: MlflowSection,
-    #[serde(default)] pub wandb:  WandbSection,
+    #[serde(default)]
+    pub mlflow: MlflowSection,
+    #[serde(default)]
+    pub wandb: WandbSection,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct MlflowSection {
-    #[serde(default = "default_mlflow_uri")] pub tracking_uri: String,
-    #[serde(default = "default_experiment")] pub experiment:   String,
+    #[serde(default = "default_mlflow_uri")]
+    pub tracking_uri: String,
+    #[serde(default = "default_experiment")]
+    pub experiment: String,
 }
 
 impl Default for MlflowSection {
     fn default() -> Self {
         Self {
             tracking_uri: default_mlflow_uri(),
-            experiment:   default_experiment(),
+            experiment: default_experiment(),
         }
     }
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub struct WandbSection {
-    #[serde(default)] pub api_key: String,
-    #[serde(default)] pub entity:  String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default)]
+    pub entity: String,
 }
 
-fn default_mlflow_uri() -> String { "http://localhost:5000".into() }
-fn default_experiment() -> String { "Default".into() }
+fn default_mlflow_uri() -> String {
+    "http://localhost:5000".into()
+}
+fn default_experiment() -> String {
+    "Default".into()
+}
 
 pub fn config_path() -> PathBuf {
-    let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()));
+    let base = dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()));
     base.join("aurum/mlops.toml")
 }
 

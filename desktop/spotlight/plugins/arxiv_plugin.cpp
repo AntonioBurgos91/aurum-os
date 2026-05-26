@@ -14,10 +14,9 @@ namespace {
 
 QString stripTrigger(QString q) {
     q = q.trimmed();
-    for (const auto& prefix : {QStringLiteral("arxiv:"), QStringLiteral("arxiv "),
-                               QStringLiteral("paper:")}) {
-        if (q.startsWith(prefix, Qt::CaseInsensitive))
-            return q.mid(prefix.size()).trimmed();
+    for (const auto& prefix :
+         {QStringLiteral("arxiv:"), QStringLiteral("arxiv "), QStringLiteral("paper:")}) {
+        if (q.startsWith(prefix, Qt::CaseInsensitive)) return q.mid(prefix.size()).trimmed();
     }
     return {};
 }
@@ -35,27 +34,36 @@ QJsonArray parseAtom(const QByteArray& body) {
         const auto tok = r.readNext();
         if (tok == QXmlStreamReader::StartElement) {
             const auto name = r.name().toString();
-            if      (name == "entry")   { inEntry = true; id.clear(); title.clear(); firstAuthor.clear(); }
-            else if (name == "author")  { inAuthor = true; }
-            else if (inEntry && name == "id")    id    = r.readElementText();
-            else if (inEntry && name == "title") title = r.readElementText().simplified();
+            if (name == "entry") {
+                inEntry = true;
+                id.clear();
+                title.clear();
+                firstAuthor.clear();
+            } else if (name == "author") {
+                inAuthor = true;
+            } else if (inEntry && name == "id")
+                id = r.readElementText();
+            else if (inEntry && name == "title")
+                title = r.readElementText().simplified();
             else if (inAuthor && name == "name" && firstAuthor.isEmpty())
                 firstAuthor = r.readElementText();
         } else if (tok == QXmlStreamReader::EndElement) {
             const auto name = r.name().toString();
-            if      (name == "author") inAuthor = false;
+            if (name == "author")
+                inAuthor = false;
             else if (name == "entry") {
                 inEntry = false;
                 if (!id.isEmpty() && !title.isEmpty()) {
                     rows.append(QJsonObject{
-                        {"title",    title},
+                        {"title", title},
                         {"subtitle", firstAuthor.isEmpty() ? id : firstAuthor + "  ·  " + id},
-                        {"icon",     "accessories-document-viewer"},
-                        {"score",    1.0},
-                        {"action",   QJsonObject{
-                            {"type", "open_url"},
-                            {"url",  id},
-                        }},
+                        {"icon", "accessories-document-viewer"},
+                        {"score", 1.0},
+                        {"action",
+                         QJsonObject{
+                             {"type", "open_url"},
+                             {"url", id},
+                         }},
                     });
                 }
             }
@@ -64,15 +72,18 @@ QJsonArray parseAtom(const QByteArray& body) {
     return rows;
 }
 
-} // namespace
+}  // namespace
 
 ArxivPlugin::ArxivPlugin(QObject* parent) : SpotlightPlugin(parent) {
     m_debounce.setSingleShot(true);
     m_debounce.setInterval(350);
     connect(&m_debounce, &QTimer::timeout, this, [this] {
         const QString q = m_pendingQuery;
-        const int gen   = m_pendingGeneration;
-        if (q.isEmpty()) { emit resultsReady(id(), gen, {}); return; }
+        const int gen = m_pendingGeneration;
+        if (q.isEmpty()) {
+            emit resultsReady(id(), gen, {});
+            return;
+        }
 
         QUrl url("https://export.arxiv.org/api/query");
         QUrlQuery qs;
@@ -86,8 +97,7 @@ ArxivPlugin::ArxivPlugin(QObject* parent) : SpotlightPlugin(parent) {
 
         auto* reply = m_net.get(req);
         reply->setProperty("generation", gen);
-        connect(reply, &QNetworkReply::finished,
-                this,  &ArxivPlugin::onReplyFinished);
+        connect(reply, &QNetworkReply::finished, this, &ArxivPlugin::onReplyFinished);
     });
 }
 
@@ -114,4 +124,4 @@ void ArxivPlugin::onReplyFinished() {
     emit resultsReady(id(), gen, parseAtom(reply->readAll()));
 }
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

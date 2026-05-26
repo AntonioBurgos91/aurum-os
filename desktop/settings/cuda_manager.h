@@ -19,17 +19,25 @@ class CudaManager : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantList toolkits READ toolkits NOTIFY toolkitsChanged)
     Q_PROPERTY(QString systemActive READ systemActive NOTIFY toolkitsChanged)
-    Q_PROPERTY(QString userActive   READ userActive   NOTIFY toolkitsChanged)
+    Q_PROPERTY(QString userActive READ userActive NOTIFY toolkitsChanged)
     Q_PROPERTY(QString driverVersion READ driverVersion NOTIFY toolkitsChanged)
 
 public:
     explicit CudaManager(QObject* parent = nullptr);
 
     // [ { version, path, isSystemActive, isUserActive } ]
-    QVariantList toolkits() const     { return m_toolkits; }
-    QString systemActive() const      { return m_systemActive; }
-    QString userActive()   const      { return m_userActive; }
-    QString driverVersion() const     { return m_driverVersion; }
+    QVariantList toolkits() const {
+        return m_toolkits;
+    }
+    QString systemActive() const {
+        return m_systemActive;
+    }
+    QString userActive() const {
+        return m_userActive;
+    }
+    QString driverVersion() const {
+        return m_driverVersion;
+    }
 
     Q_INVOKABLE void refresh();
 
@@ -47,9 +55,9 @@ private:
     void scan();
 
     QVariantList m_toolkits;
-    QString      m_systemActive;
-    QString      m_userActive;
-    QString      m_driverVersion;
+    QString m_systemActive;
+    QString m_userActive;
+    QString m_driverVersion;
 };
 
-} // namespace aurum::settings
+}  // namespace aurum::settings

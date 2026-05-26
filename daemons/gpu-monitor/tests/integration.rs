@@ -102,7 +102,9 @@ fn refresh_state_snapshot_is_clone_eq() {
     // numeric fields. (We can't compare Strings cheaply across a real
     // mutex, but the shape Eq test covers what wire callers see.)
     let s = GpuStateShape::default();
-    let s2 = GpuStateShape { ..GpuStateShape::default() };
+    let s2 = GpuStateShape {
+        ..GpuStateShape::default()
+    };
     assert_eq!(s, s2);
 }
 
@@ -117,6 +119,8 @@ async fn nvml_initializes_on_real_gpu() {
     //      return Ok.
     // We don't link nvml-wrapper from the test crate to keep the
     // integration test fast in CI; this is a placeholder.
-    eprintln!("Run aurum-gpu-monitor against a real NVIDIA GPU and \
-               assert util/temp/power are plausible (>0 under load).");
+    eprintln!(
+        "Run aurum-gpu-monitor against a real NVIDIA GPU and \
+               assert util/temp/power are plausible (>0 under load)."
+    );
 }

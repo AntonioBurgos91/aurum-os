@@ -46,10 +46,10 @@ void HyprClient::refresh() {
     for (const auto& v : ws_arr) {
         const auto w = v.toObject();
         m_workspaces << QVariantMap{
-            {"id",         w.value("id").toInt()},
-            {"name",       w.value("name").toString()},
-            {"monitor",    w.value("monitor").toString()},
-            {"windows",    w.value("windows").toInt()},
+            {"id", w.value("id").toInt()},
+            {"name", w.value("name").toString()},
+            {"monitor", w.value("monitor").toString()},
+            {"windows", w.value("windows").toInt()},
             {"hasfullscreen", w.value("hasfullscreen").toBool()},
         };
     }
@@ -69,15 +69,15 @@ void HyprClient::refresh() {
         const auto at = c.value("at").toArray();
         const auto sz = c.value("size").toArray();
         m_clients << QVariantMap{
-            {"address",      c.value("address").toString()},
-            {"class",        c.value("class").toString()},
-            {"title",        c.value("title").toString()},
-            {"workspaceId",  ws},
-            {"x",            at.size() == 2 ? at.at(0).toInt() : 0},
-            {"y",            at.size() == 2 ? at.at(1).toInt() : 0},
-            {"width",        sz.size() == 2 ? sz.at(0).toInt() : 0},
-            {"height",       sz.size() == 2 ? sz.at(1).toInt() : 0},
-            {"focused",      c.value("focusHistoryID").toInt(-1) == 0},
+            {"address", c.value("address").toString()},
+            {"class", c.value("class").toString()},
+            {"title", c.value("title").toString()},
+            {"workspaceId", ws},
+            {"x", at.size() == 2 ? at.at(0).toInt() : 0},
+            {"y", at.size() == 2 ? at.at(1).toInt() : 0},
+            {"width", sz.size() == 2 ? sz.at(0).toInt() : 0},
+            {"height", sz.size() == 2 ? sz.at(1).toInt() : 0},
+            {"focused", c.value("focusHistoryID").toInt(-1) == 0},
         };
     }
 
@@ -101,4 +101,4 @@ bool HyprClient::gotoWorkspace(int id) {
     return p.exitCode() == 0;
 }
 
-} // namespace aurum::mc
+}  // namespace aurum::mc

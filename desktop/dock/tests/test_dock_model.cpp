@@ -11,12 +11,12 @@
 //   * Missing dock.list → falls back to kDefaultFavorites (we can only assert
 //     "something" loads, since the defaults reference apps not on the test
 //     system; the row count will be 0 with isValid()==true).
-#include <QtTest>
-#include <QSignalSpy>
-#include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
+#include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTextStream>
+#include <QtTest>
 
 #include "dock_model.h"
 
@@ -40,9 +40,9 @@ private slots:
 
 private:
     QTemporaryDir m_tmp;
-    QString m_appsDir;     // <tmp>/applications  (== XDG_DATA_HOME/applications)
-    QString m_configDir;   // <tmp>/config        (== XDG_CONFIG_HOME)
-    QString m_listPath;    // <configDir>/aurum/dock.list
+    QString m_appsDir;    // <tmp>/applications  (== XDG_DATA_HOME/applications)
+    QString m_configDir;  // <tmp>/config        (== XDG_CONFIG_HOME)
+    QString m_listPath;   // <configDir>/aurum/dock.list
 
     QByteArray m_prev_data_home;
     QByteArray m_prev_data_dirs;
@@ -56,32 +56,38 @@ private:
 void TestDockModel::initTestCase() {
     QVERIFY(m_tmp.isValid());
 
-    m_appsDir   = m_tmp.path() + "/applications";          // XDG_DATA_HOME/applications
+    m_appsDir = m_tmp.path() + "/applications";  // XDG_DATA_HOME/applications
     m_configDir = m_tmp.path() + "/config";
-    m_listPath  = m_configDir + "/aurum/dock.list";
+    m_listPath = m_configDir + "/aurum/dock.list";
 
     QVERIFY(QDir().mkpath(m_appsDir));
     QVERIFY(QDir().mkpath(m_configDir + "/aurum"));
 
-    m_prev_data_home   = qgetenv("XDG_DATA_HOME");
-    m_prev_data_dirs   = qgetenv("XDG_DATA_DIRS");
+    m_prev_data_home = qgetenv("XDG_DATA_HOME");
+    m_prev_data_dirs = qgetenv("XDG_DATA_DIRS");
     m_prev_config_home = qgetenv("XDG_CONFIG_HOME");
 
     // core-services looks under $XDG_DATA_HOME/applications. We pin
     // XDG_DATA_DIRS too so /usr/share's real .desktop files don't leak in
     // and confuse lookups (e.g. by resolving "firefox" against the host).
-    qputenv("XDG_DATA_HOME",   m_tmp.path().toUtf8());
-    qputenv("XDG_DATA_DIRS",   m_tmp.path().toUtf8());
+    qputenv("XDG_DATA_HOME", m_tmp.path().toUtf8());
+    qputenv("XDG_DATA_DIRS", m_tmp.path().toUtf8());
     qputenv("XDG_CONFIG_HOME", m_configDir.toUtf8());
 }
 
 void TestDockModel::cleanupTestCase() {
-    if (!m_prev_data_home.isEmpty())   qputenv("XDG_DATA_HOME",   m_prev_data_home);
-    else                               qunsetenv("XDG_DATA_HOME");
-    if (!m_prev_data_dirs.isEmpty())   qputenv("XDG_DATA_DIRS",   m_prev_data_dirs);
-    else                               qunsetenv("XDG_DATA_DIRS");
-    if (!m_prev_config_home.isEmpty()) qputenv("XDG_CONFIG_HOME", m_prev_config_home);
-    else                               qunsetenv("XDG_CONFIG_HOME");
+    if (!m_prev_data_home.isEmpty())
+        qputenv("XDG_DATA_HOME", m_prev_data_home);
+    else
+        qunsetenv("XDG_DATA_HOME");
+    if (!m_prev_data_dirs.isEmpty())
+        qputenv("XDG_DATA_DIRS", m_prev_data_dirs);
+    else
+        qunsetenv("XDG_DATA_DIRS");
+    if (!m_prev_config_home.isEmpty())
+        qputenv("XDG_CONFIG_HOME", m_prev_config_home);
+    else
+        qunsetenv("XDG_CONFIG_HOME");
 }
 
 void TestDockModel::init() {
@@ -91,8 +97,7 @@ void TestDockModel::init() {
     QFile::remove(m_listPath);
 }
 
-void TestDockModel::writeDesktop(const QString& id, const QString& name,
-                                 const QString& icon) {
+void TestDockModel::writeDesktop(const QString& id, const QString& name, const QString& icon) {
     QFile f(m_appsDir + "/" + id + ".desktop");
     QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
     QTextStream s(&f);
@@ -111,8 +116,8 @@ void TestDockModel::writeList(const QStringList& ids) {
 }
 
 void TestDockModel::ctor_reads_three_entries_from_list() {
-    writeDesktop("aurum.dock.one",   "App One");
-    writeDesktop("aurum.dock.two",   "App Two");
+    writeDesktop("aurum.dock.one", "App One");
+    writeDesktop("aurum.dock.two", "App Two");
     writeDesktop("aurum.dock.three", "App Three");
     writeList({"aurum.dock.one", "aurum.dock.two", "aurum.dock.three"});
 
@@ -194,8 +199,7 @@ void TestDockModel::unresolvable_id_silently_skipped() {
     DockModel m;
     // The two missing ids drop out; only the real one survives.
     QCOMPARE(m.rowCount(), 1);
-    QCOMPARE(m.data(m.index(0, 0), DockModel::NameRole).toString(),
-             QStringLiteral("Real App"));
+    QCOMPARE(m.data(m.index(0, 0), DockModel::NameRole).toString(), QStringLiteral("Real App"));
 }
 
 void TestDockModel::reload_emits_model_reset() {

@@ -10,17 +10,20 @@ namespace aurum::installer {
 
 namespace {
 
-constexpr qulonglong kMinSize = 8ull * 1024ull * 1024ull * 1024ull; // 8 GiB
+constexpr qulonglong kMinSize = 8ull * 1024ull * 1024ull * 1024ull;  // 8 GiB
 
 QString human_size(qulonglong bytes) {
     static const char* units[] = {"B", "KB", "MB", "GB", "TB"};
     double v = static_cast<double>(bytes);
     int i = 0;
-    while (v >= 1024 && i < 4) { v /= 1024.0; ++i; }
+    while (v >= 1024 && i < 4) {
+        v /= 1024.0;
+        ++i;
+    }
     return QString("%1 %2").arg(v, 0, 'f', v < 10 ? 1 : 0).arg(units[i]);
 }
 
-} // namespace
+}  // namespace
 
 DiskLister::DiskLister(QObject* parent) : QObject(parent) {
     refresh();
@@ -44,24 +47,24 @@ void DiskLister::refresh() {
         const qulonglong size_bytes = static_cast<qulonglong>(d.value("size").toDouble());
         if (size_bytes < kMinSize) continue;
 
-        const auto name  = d.value("name").toString();
+        const auto name = d.value("name").toString();
         const auto model = d.value("model").toString();
-        const auto tran  = d.value("tran").toString();
-        const bool rota  = d.value("rota").toBool();
+        const auto tran = d.value("tran").toString();
+        const bool rota = d.value("rota").toBool();
 
         m_disks << QVariantMap{
-            {"device",     "/dev/" + name},
-            {"name",       name},
-            {"sizeBytes",  static_cast<qulonglong>(size_bytes)},
-            {"sizeHuman",  human_size(size_bytes)},
-            {"model",      model.isEmpty() ? "Unknown disk" : model},
-            {"transport",  tran},   // "nvme" | "sata" | "usb" | ...
+            {"device", "/dev/" + name},
+            {"name", name},
+            {"sizeBytes", static_cast<qulonglong>(size_bytes)},
+            {"sizeHuman", human_size(size_bytes)},
+            {"model", model.isEmpty() ? "Unknown disk" : model},
+            {"transport", tran},  // "nvme" | "sata" | "usb" | ...
             {"rotational", rota},
-            {"warning",    tran == "usb" ? "Detected USB device — usually the install medium"
-                                         : QString{}},
+            {"warning",
+             tran == "usb" ? "Detected USB device — usually the install medium" : QString{}},
         };
     }
     emit refreshed();
 }
 
-} // namespace aurum::installer
+}  // namespace aurum::installer

@@ -15,13 +15,19 @@ class CalculatorPlugin : public SpotlightPlugin {
 public:
     explicit CalculatorPlugin(QObject* parent = nullptr);
 
-    QString id() const override          { return "calculator"; }
-    QString displayName() const override { return "Calculator"; }
-    int     priority() const override    { return 2; }
-    void    search(const QString& query, int generation) override;
+    QString id() const override {
+        return "calculator";
+    }
+    QString displayName() const override {
+        return "Calculator";
+    }
+    int priority() const override {
+        return 2;
+    }
+    void search(const QString& query, int generation) override;
 
 private:
     QJSEngine m_engine;
 };
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

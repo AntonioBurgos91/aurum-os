@@ -3,18 +3,18 @@
 // laid out like a build tree. We deliberately do NOT seed the system paths
 // (/usr/share, /usr/local/share) — those tests would only ever work where the
 // host already had AurumOS installed.
-#include <QtTest>
-#include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QTemporaryDir>
+#include <QtTest>
 
 #include "core_services.h"
 
 class TestResolvePath : public QObject {
     Q_OBJECT
 private slots:
-    void init();              // per-test cleanup
+    void init();  // per-test cleanup
     void honors_aurum_qml_dir_when_set();
     void returns_empty_when_nothing_exists();
     void falls_back_to_argv0_qml_subdir();
@@ -49,9 +49,8 @@ void TestResolvePath::honors_aurum_qml_dir_when_set() {
 
     // argv0 is a path under /tmp that has *no* qml/ subdir, so the only
     // candidate that resolves is AURUM_QML_DIR/Foo.qml.
-    const QString got = resolve_qml_path(
-        QStringLiteral("Foo.qml"),
-        "/tmp/no-such-build-tree/bin/myapp");
+    const QString got =
+        resolve_qml_path(QStringLiteral("Foo.qml"), "/tmp/no-such-build-tree/bin/myapp");
     QCOMPARE(got, QFileInfo(qmlPath).absoluteFilePath());
 }
 
@@ -61,9 +60,8 @@ void TestResolvePath::returns_empty_when_nothing_exists() {
     QVERIFY(tmp.isValid());
     qputenv("AURUM_QML_DIR", tmp.path().toUtf8());
 
-    const QString got = resolve_qml_path(
-        QStringLiteral("NoSuch.qml"),
-        "/tmp/no-such-build-tree/bin/myapp");
+    const QString got =
+        resolve_qml_path(QStringLiteral("NoSuch.qml"), "/tmp/no-such-build-tree/bin/myapp");
     QVERIFY2(got.isEmpty(), qPrintable(QStringLiteral("expected empty, got: ") + got));
 }
 
@@ -72,13 +70,12 @@ void TestResolvePath::falls_back_to_argv0_qml_subdir() {
     // <tmp>/bin/myapp, and the qml lives in <tmp>/bin/qml/Foo.qml.
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
-    const QString argv0  = tmp.path() + "/bin/myapp";
+    const QString argv0 = tmp.path() + "/bin/myapp";
     const QString qmlFile = tmp.path() + "/bin/qml/Foo.qml";
     writeFile(argv0, "#!/bin/sh\n");
     writeFile(qmlFile);
 
-    const QString got = resolve_qml_path(
-        QStringLiteral("Foo.qml"), argv0.toUtf8().constData());
+    const QString got = resolve_qml_path(QStringLiteral("Foo.qml"), argv0.toUtf8().constData());
     QCOMPARE(got, QFileInfo(qmlFile).absoluteFilePath());
 }
 
@@ -90,13 +87,12 @@ void TestResolvePath::argv0_takes_precedence_over_nonexistent_aurum_qml_dir() {
     qputenv("AURUM_QML_DIR", (tmp.path() + "/empty").toUtf8());
     QVERIFY(QDir().mkpath(tmp.path() + "/empty"));
 
-    const QString argv0   = tmp.path() + "/bin/myapp";
+    const QString argv0 = tmp.path() + "/bin/myapp";
     const QString qmlFile = tmp.path() + "/bin/qml/Foo.qml";
     writeFile(argv0, "#!/bin/sh\n");
     writeFile(qmlFile);
 
-    const QString got = resolve_qml_path(
-        QStringLiteral("Foo.qml"), argv0.toUtf8().constData());
+    const QString got = resolve_qml_path(QStringLiteral("Foo.qml"), argv0.toUtf8().constData());
     QCOMPARE(got, QFileInfo(qmlFile).absoluteFilePath());
 }
 

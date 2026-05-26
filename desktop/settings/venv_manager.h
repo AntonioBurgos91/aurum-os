@@ -20,10 +20,16 @@ class VenvManager : public QObject {
 public:
     explicit VenvManager(QObject* parent = nullptr);
 
-    QVariantList venvs() const          { return m_venvs; }
-    QStringList  availablePythons() const;
-    bool busy() const                   { return m_busy; }
-    QString lastError() const           { return m_lastError; }
+    QVariantList venvs() const {
+        return m_venvs;
+    }
+    QStringList availablePythons() const;
+    bool busy() const {
+        return m_busy;
+    }
+    QString lastError() const {
+        return m_lastError;
+    }
 
     Q_INVOKABLE void refresh();
 
@@ -50,4 +56,4 @@ private:
     QString m_lastError;
 };
 
-} // namespace aurum::settings
+}  // namespace aurum::settings

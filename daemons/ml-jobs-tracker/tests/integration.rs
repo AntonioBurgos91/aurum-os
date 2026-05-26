@@ -48,9 +48,9 @@ async fn recent_runs_parses_canned_response() {
     // end_time → duration computed from "now"), one FINISHED with a
     // real end_time. Tracker code should produce duration_s >= 0 for
     // both, with the FINISHED run's duration being exactly 60s.
-    let start_running  = 1_700_000_000_000_i64;
+    let start_running = 1_700_000_000_000_i64;
     let start_finished = 1_700_000_000_000_i64;
-    let end_finished   = 1_700_000_060_000_i64;
+    let end_finished = 1_700_000_060_000_i64;
 
     Mock::given(method("POST"))
         .and(path("/api/2.0/mlflow/runs/search"))
@@ -87,7 +87,7 @@ async fn recent_runs_parses_canned_response() {
     let running = &runs[0];
     assert_eq!(running.run_id, "abc123");
     assert_eq!(running.status, "RUNNING");
-    assert_eq!(running.name,   "exp-running");
+    assert_eq!(running.name, "exp-running");
     assert!(running.duration_s >= 0, "running duration_s must be >= 0");
 
     let finished = &runs[1];
@@ -202,7 +202,10 @@ async fn unreachable_server_returns_err_not_panic() {
     // a panic from inside the client.
     let client = Client::new("http://127.0.0.1:1").unwrap();
     let res = client.recent_runs("1", 5).await;
-    assert!(res.is_err(), "expected Err for unreachable server, got {res:?}");
+    assert!(
+        res.is_err(),
+        "expected Err for unreachable server, got {res:?}"
+    );
 }
 
 #[tokio::test]

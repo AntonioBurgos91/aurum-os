@@ -55,8 +55,8 @@ fn index_three_docs_and_search_finds_one() {
     let tmp_files = TempDir::new().unwrap();
 
     let notebook = make_fake_file(tmp_files.path(), "notebooks/explore.ipynb", b"{}");
-    let model    = make_fake_file(tmp_files.path(), "models/llama.safetensors", b"\0\0\0\0");
-    let parquet  = make_fake_file(tmp_files.path(), "datasets/train.parquet",  b"PAR1");
+    let model = make_fake_file(tmp_files.path(), "models/llama.safetensors", b"\0\0\0\0");
+    let parquet = make_fake_file(tmp_files.path(), "datasets/train.parquet", b"PAR1");
 
     let mut idx = Indexer::open(tmp_idx.path()).expect("open");
     idx.upsert(&notebook);
@@ -116,13 +116,15 @@ fn classify_kinds_via_extension_and_dir() {
     let tmp_idx = TempDir::new().unwrap();
     let tmp_files = TempDir::new().unwrap();
 
-    let nb  = make_fake_file(tmp_files.path(), "notebooks/a.ipynb", b"{}");
-    let md  = make_fake_file(tmp_files.path(), "other/readme.md",   b"# hi");
-    let ds  = make_fake_file(tmp_files.path(), "datasets/x.parquet", b"PAR1");
+    let nb = make_fake_file(tmp_files.path(), "notebooks/a.ipynb", b"{}");
+    let md = make_fake_file(tmp_files.path(), "other/readme.md", b"# hi");
+    let ds = make_fake_file(tmp_files.path(), "datasets/x.parquet", b"PAR1");
     let mdl = make_fake_file(tmp_files.path(), "models/y.safetensors", b"\0");
 
     let mut idx = Indexer::open(tmp_idx.path()).unwrap();
-    for p in [&nb, &md, &ds, &mdl] { idx.upsert(p); }
+    for p in [&nb, &md, &ds, &mdl] {
+        idx.upsert(p);
+    }
     commit_and_reload(&mut idx);
 
     let by_token = |q: &str| -> String {
@@ -130,10 +132,10 @@ fn classify_kinds_via_extension_and_dir() {
         assert!(!h.is_empty(), "no hits for {q}");
         h[0].kind.clone()
     };
-    assert_eq!(by_token("a"),      "notebook");
+    assert_eq!(by_token("a"), "notebook");
     assert_eq!(by_token("readme"), "file");
-    assert_eq!(by_token("x"),      "dataset");
-    assert_eq!(by_token("y"),      "model");
+    assert_eq!(by_token("x"), "dataset");
+    assert_eq!(by_token("y"), "model");
 }
 
 #[test]

@@ -41,7 +41,7 @@ QHash<QString, QString> parse_flat_yaml(const QString& path) {
 
         const int colon = trimmed.indexOf(':');
         if (colon <= 0) continue;
-        QString key   = trimmed.left(colon).trimmed();
+        QString key = trimmed.left(colon).trimmed();
         QString value = trimmed.mid(colon + 1).trimmed();
 
         // Strip an inline "# comment" tail unless it sits inside quotes.
@@ -50,9 +50,8 @@ QHash<QString, QString> parse_flat_yaml(const QString& path) {
             if (hash >= 0) value = value.left(hash).trimmed();
         }
         // Unquote.
-        if (value.size() >= 2 &&
-            ((value.startsWith('"') && value.endsWith('"')) ||
-             (value.startsWith('\'') && value.endsWith('\'')))) {
+        if (value.size() >= 2 && ((value.startsWith('"') && value.endsWith('"')) ||
+                                  (value.startsWith('\'') && value.endsWith('\'')))) {
             value = value.mid(1, value.size() - 2);
         }
         // An empty value typically means "block follows" — we don't use it.
@@ -80,8 +79,9 @@ QString resolve_cli_binary() {
         "/usr/bin/aurum-model-pack",
         QDir::homePath() + "/.local/bin/aurum-model-pack",
     };
-    for (const auto& c : candidates) if (QFile::exists(c)) return c;
-    return "aurum-model-pack"; // fall back to $PATH
+    for (const auto& c : candidates)
+        if (QFile::exists(c)) return c;
+    return "aurum-model-pack";  // fall back to $PATH
 }
 
 quint64 directory_size_bytes(const QString& root) {
@@ -94,12 +94,11 @@ quint64 directory_size_bytes(const QString& root) {
     return sum;
 }
 
-} // namespace
+}  // namespace
 
 // --- ctor / dtor -------------------------------------------------------------
 
-ModelPacksModel::ModelPacksModel(QObject* parent)
-    : QAbstractListModel(parent) {
+ModelPacksModel::ModelPacksModel(QObject* parent) : QAbstractListModel(parent) {
     detectProfile();
     scanManifests();
 }
@@ -115,37 +114,48 @@ int ModelPacksModel::rowCount(const QModelIndex& parent) const {
 }
 
 QVariant ModelPacksModel::data(const QModelIndex& index, int role) const {
-    if (!index.isValid() || index.row() < 0 || index.row() >= m_packs.size())
-        return {};
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_packs.size()) return {};
     const auto& p = m_packs.at(index.row());
     switch (role) {
-        case IdRole:           return p.id;
-        case TitleRole:        return p.title;
-        case DescriptionRole:  return p.description;
-        case SizeBytesRole:    return QVariant::fromValue(p.sizeBytes);
-        case SizeHumanRole:    return humanSize(p.sizeBytes);
-        case MinProfileRole:   return p.minProfile;
-        case DocsUrlRole:      return p.docsUrl;
-        case StateRole:        return p.state;
-        case ProgressRole:     return p.progress;
-        case LastErrorRole:    return p.lastError;
-        case MeetsProfileRole: return meetsProfile(p.minProfile);
-        default:               return {};
+        case IdRole:
+            return p.id;
+        case TitleRole:
+            return p.title;
+        case DescriptionRole:
+            return p.description;
+        case SizeBytesRole:
+            return QVariant::fromValue(p.sizeBytes);
+        case SizeHumanRole:
+            return humanSize(p.sizeBytes);
+        case MinProfileRole:
+            return p.minProfile;
+        case DocsUrlRole:
+            return p.docsUrl;
+        case StateRole:
+            return p.state;
+        case ProgressRole:
+            return p.progress;
+        case LastErrorRole:
+            return p.lastError;
+        case MeetsProfileRole:
+            return meetsProfile(p.minProfile);
+        default:
+            return {};
     }
 }
 
 QHash<int, QByteArray> ModelPacksModel::roleNames() const {
     return {
-        {IdRole,           "packId"},
-        {TitleRole,        "title"},
-        {DescriptionRole,  "description"},
-        {SizeBytesRole,    "sizeBytes"},
-        {SizeHumanRole,    "sizeHuman"},
-        {MinProfileRole,   "minProfile"},
-        {DocsUrlRole,      "docsUrl"},
-        {StateRole,        "state"},
-        {ProgressRole,     "progress"},
-        {LastErrorRole,    "lastError"},
+        {IdRole, "packId"},
+        {TitleRole, "title"},
+        {DescriptionRole, "description"},
+        {SizeBytesRole, "sizeBytes"},
+        {SizeHumanRole, "sizeHuman"},
+        {MinProfileRole, "minProfile"},
+        {DocsUrlRole, "docsUrl"},
+        {StateRole, "state"},
+        {ProgressRole, "progress"},
+        {LastErrorRole, "lastError"},
         {MeetsProfileRole, "meetsProfile"},
     };
 }
@@ -166,9 +176,9 @@ void ModelPacksModel::emitDataChanged(int row) {
 
 int ModelPacksModel::profileRank(const QString& profile) {
     // Higher = more capable hardware.
-    if (profile == "lite")        return 0;
-    if (profile == "standard")    return 1;
-    if (profile == "pro")         return 2;
+    if (profile == "lite") return 0;
+    if (profile == "standard") return 1;
+    if (profile == "pro") return 2;
     if (profile == "workstation") return 3;
     // Unknown profile string defaults to "standard" for the comparison so a
     // manifest with a typo doesn't lock a user out of installing.
@@ -193,8 +203,7 @@ QString ModelPacksModel::humanSize(qint64 bytes) const {
 }
 
 QString ModelPacksModel::defaultCachePath() {
-    const QString xdg = qEnvironmentVariable(
-        "XDG_CACHE_HOME", QDir::homePath() + "/.cache");
+    const QString xdg = qEnvironmentVariable("XDG_CACHE_HOME", QDir::homePath() + "/.cache");
     return xdg + "/aurum/models";
 }
 
@@ -205,7 +214,7 @@ QString ModelPacksModel::cachePath() const {
 void ModelPacksModel::detectProfile() {
     QString p = read_profile_conf(kProfileConf);
     if (p.isEmpty()) p = qEnvironmentVariable("AURUM_PROFILE");
-    if (p.isEmpty()) p = "standard"; // safe default
+    if (p.isEmpty()) p = "standard";  // safe default
     if (p != m_currentProfile) {
         m_currentProfile = p;
         emit currentProfileChanged();
@@ -218,33 +227,30 @@ void ModelPacksModel::scanManifests() {
     beginResetModel();
     // Preserve existing transient state (installing / progress) across a
     // refresh so a manual rescan doesn't snap the progress bar back to 0.
-    QHash<QString, QPair<QString, int>> prevState; // id -> (state, progress)
-    for (const auto& pk : m_packs)
-        prevState.insert(pk.id, {pk.state, pk.progress});
+    QHash<QString, QPair<QString, int>> prevState;  // id -> (state, progress)
+    for (const auto& pk : m_packs) prevState.insert(pk.id, {pk.state, pk.progress});
 
     m_packs.clear();
     QDir dir(kManifestDir);
     if (dir.exists()) {
-        const auto entries = dir.entryInfoList(
-            QStringList{"*.yaml", "*.yml"},
-            QDir::Files | QDir::Readable,
-            QDir::Name);
+        const auto entries = dir.entryInfoList(QStringList{"*.yaml", "*.yml"},
+                                               QDir::Files | QDir::Readable, QDir::Name);
         for (const auto& fi : entries) {
             const auto kv = parse_flat_yaml(fi.absoluteFilePath());
             if (kv.isEmpty()) continue;
             ModelPack p;
-            p.id          = kv.value("id", fi.baseName());
-            p.title       = kv.value("title", p.id);
+            p.id = kv.value("id", fi.baseName());
+            p.title = kv.value("title", p.id);
             p.description = kv.value("description");
-            p.minProfile  = kv.value("min_profile", "standard");
-            p.docsUrl     = kv.value("docs_url");
+            p.minProfile = kv.value("min_profile", "standard");
+            p.docsUrl = kv.value("docs_url");
             bool ok = false;
             const qint64 sb = kv.value("size_bytes").toLongLong(&ok);
             p.sizeBytes = ok ? sb : 0;
             // Re-apply the prior transient state if this pack already existed.
             if (prevState.contains(p.id)) {
                 const auto prev = prevState.value(p.id);
-                p.state    = prev.first;
+                p.state = prev.first;
                 p.progress = prev.second;
             }
             // If the CLI is available, we could ask it whether the pack is
@@ -269,11 +275,11 @@ void ModelPacksModel::refresh() {
 void ModelPacksModel::install(const QString& packId) {
     const int row = indexOf(packId);
     if (row < 0) return;
-    if (m_jobs.contains(packId)) return; // already running
+    if (m_jobs.contains(packId)) return;  // already running
 
     auto& pack = m_packs[row];
-    pack.state     = "installing";
-    pack.progress  = 0;
+    pack.state = "installing";
+    pack.progress = 0;
     pack.lastError.clear();
     emitDataChanged(row);
     emit packStateChanged(packId);
@@ -283,8 +289,8 @@ void ModelPacksModel::install(const QString& packId) {
     // Inherit the user environment — the CLI may need $HOME, $XDG_CACHE_HOME,
     // proxy settings, $HF_TOKEN, etc.
     connect(proc, &QProcess::readyRead, this, &ModelPacksModel::onProcReadyRead);
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, &ModelPacksModel::onProcFinished);
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            &ModelPacksModel::onProcFinished);
 
     RunningJob job{proc, {}, "install"};
     m_jobs.insert(packId, job);
@@ -300,8 +306,8 @@ void ModelPacksModel::remove(const QString& packId) {
     // Remove is fast — we still run it as a tracked QProcess so the UI can
     // show a brief spinner state and the same progress/done lines apply.
     auto& pack = m_packs[row];
-    pack.state     = "installing"; // reuse "in flight" state
-    pack.progress  = 0;
+    pack.state = "installing";  // reuse "in flight" state
+    pack.progress = 0;
     pack.lastError.clear();
     emitDataChanged(row);
     emit packStateChanged(packId);
@@ -309,8 +315,8 @@ void ModelPacksModel::remove(const QString& packId) {
     auto* proc = new QProcess(this);
     proc->setProcessChannelMode(QProcess::MergedChannels);
     connect(proc, &QProcess::readyRead, this, &ModelPacksModel::onProcReadyRead);
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, &ModelPacksModel::onProcFinished);
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            &ModelPacksModel::onProcFinished);
 
     RunningJob job{proc, {}, "remove"};
     m_jobs.insert(packId, job);
@@ -371,7 +377,7 @@ void ModelPacksModel::handleProgressLine(const QByteArray& raw) {
     if (line.startsWith("ERROR:")) {
         const auto parts = line.mid(6).split(':');
         if (parts.isEmpty()) return;
-        const QString id  = parts.at(0);
+        const QString id = parts.at(0);
         const QString msg = parts.mid(1).join(':');
         const int row = indexOf(id);
         if (row < 0) return;
@@ -412,13 +418,12 @@ void ModelPacksModel::onProcFinished(int exitCode, QProcess::ExitStatus exitStat
         if (!ok) {
             pack.state = "error";
             if (pack.lastError.isEmpty())
-                pack.lastError = QString("aurum-model-pack exited with code %1")
-                                    .arg(exitCode);
+                pack.lastError = QString("aurum-model-pack exited with code %1").arg(exitCode);
         } else if (op == "install") {
-            pack.state    = "installed";
+            pack.state = "installed";
             pack.progress = 100;
-        } else { // remove
-            pack.state    = "not_installed";
+        } else {  // remove
+            pack.state = "not_installed";
             pack.progress = 0;
         }
         emitDataChanged(row);
@@ -456,11 +461,11 @@ void ModelPacksModel::clearCache() {
     }
     // Reset transient state for every pack (everything is gone from disk).
     for (int i = 0; i < m_packs.size(); ++i) {
-        m_packs[i].state    = "not_installed";
+        m_packs[i].state = "not_installed";
         m_packs[i].progress = 0;
         m_packs[i].lastError.clear();
         emitDataChanged(i);
     }
 }
 
-} // namespace aurum::settings
+}  // namespace aurum::settings

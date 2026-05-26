@@ -18,37 +18,36 @@
 // QQmlContext (see desktop/settings/main.cpp). The object is a QObject so
 // Q_INVOKABLE methods are reachable from QML directly.
 //
+#include <QMap>
 #include <QObject>
 #include <QString>
-#include <QMap>
 #include <mutex>
 
 namespace aurum {
 
 class ProfileClient : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QString profile      READ profile    CONSTANT)
-    Q_PROPERTY(int     vramMb       READ vramMb     CONSTANT)
-    Q_PROPERTY(int     ramGb        READ ramGb      CONSTANT)
-    Q_PROPERTY(QString gpuName      READ gpuName    CONSTANT)
-    Q_PROPERTY(bool    hasCuda      READ hasCuda    CONSTANT)
+    Q_PROPERTY(QString profile READ profile CONSTANT)
+    Q_PROPERTY(int vramMb READ vramMb CONSTANT)
+    Q_PROPERTY(int ramGb READ ramGb CONSTANT)
+    Q_PROPERTY(QString gpuName READ gpuName CONSTANT)
+    Q_PROPERTY(bool hasCuda READ hasCuda CONSTANT)
 
 public:
     // Process-wide singleton. First call parses /etc/aurum/profile.conf (or
     // the override path in $AURUM_PROFILE_CONF, useful for tests and dev).
     static ProfileClient& instance();
 
-    QString profile() const;          // e.g. "standard"
-    int     vramMb()  const;          // 0 on CPU-only / detection failure
-    int     ramGb()   const;
-    QString gpuName() const;          // "none" if no GPU detected
-    bool    hasCuda() const;
+    QString profile() const;  // e.g. "standard"
+    int vramMb() const;       // 0 on CPU-only / detection failure
+    int ramGb() const;
+    QString gpuName() const;  // "none" if no GPU detected
+    bool hasCuda() const;
 
     // Generic getter for any AURUM_* key in the conf (returns `fallback` if
     // the key is absent). Lets QML / C++ consumers read newer keys without
     // touching this header every time the conf grows a field.
-    Q_INVOKABLE QString get(const QString& key,
-                            const QString& fallback = QString()) const;
+    Q_INVOKABLE QString get(const QString& key, const QString& fallback = QString()) const;
 
     // Force a reparse. Useful after the user clicks "Re-detect" in the
     // HardwarePanel (which shells out to aurum-detect-profile and then asks
@@ -64,4 +63,4 @@ private:
     QString m_path;
 };
 
-} // namespace aurum
+}  // namespace aurum

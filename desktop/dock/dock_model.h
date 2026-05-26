@@ -16,10 +16,10 @@ class DockModel : public QAbstractListModel {
     Q_OBJECT
 public:
     enum Roles {
-        IdRole       = Qt::UserRole + 1,
+        IdRole = Qt::UserRole + 1,
         NameRole,
         IconNameRole,
-        IconUrlRole,    // file:// URL for QML Image; resolved via QIcon theme.
+        IconUrlRole,  // file:// URL for QML Image; resolved via QIcon theme.
         ExecRole,
         IsRunningRole,  // mocked for Phase 2; foreign-toplevel landing later.
     };
@@ -43,4 +43,4 @@ private:
     QVector<aurum::core::DesktopEntry> m_entries;
 };
 
-} // namespace aurum::dock
+}  // namespace aurum::dock

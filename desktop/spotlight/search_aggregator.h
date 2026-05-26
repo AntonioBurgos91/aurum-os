@@ -24,7 +24,9 @@ public:
 
     void addPlugin(SpotlightPlugin* p);
 
-    QVariantList groups() const { return m_groups_cached; }
+    QVariantList groups() const {
+        return m_groups_cached;
+    }
 
     // QML calls this on every text change. Generation bumps so stale plugin
     // responses are ignored once they arrive.
@@ -49,4 +51,4 @@ private:
     int m_generation = 0;
 };
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

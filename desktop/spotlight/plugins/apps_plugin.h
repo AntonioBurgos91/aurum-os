@@ -1,7 +1,7 @@
 #pragma once
 
-#include "plugin.h"
 #include "core_services.h"
+#include "plugin.h"
 
 namespace aurum::spotlight {
 
@@ -13,13 +13,19 @@ class AppsPlugin : public SpotlightPlugin {
 public:
     explicit AppsPlugin(QObject* parent = nullptr);
 
-    QString id() const override          { return "apps"; }
-    QString displayName() const override { return "Applications"; }
-    int     priority() const override    { return 0; }
-    void    search(const QString& query, int generation) override;
+    QString id() const override {
+        return "apps";
+    }
+    QString displayName() const override {
+        return "Applications";
+    }
+    int priority() const override {
+        return 0;
+    }
+    void search(const QString& query, int generation) override;
 
 private:
     QVector<aurum::core::DesktopEntry> m_entries;
 };
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

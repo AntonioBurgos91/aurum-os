@@ -5,11 +5,11 @@
 //
 // We intentionally avoid GUI bring-up (QTEST_GUILESS_MAIN) — the parser
 // touches nothing graphical and CI may not have a display.
-#include <QtTest>
-#include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
+#include <QTemporaryDir>
 #include <QTextStream>
+#include <QtTest>
 
 #include "core_services.h"
 
@@ -67,7 +67,7 @@ Icon=minimal-icon
 
     DesktopEntry e = lookup_desktop_entry("aurum.test.minimal");
     QVERIFY(e.isValid());
-    QCOMPARE(e.id,   QStringLiteral("aurum.test.minimal"));
+    QCOMPARE(e.id, QStringLiteral("aurum.test.minimal"));
     QCOMPARE(e.name, QStringLiteral("Minimal"));
     QCOMPARE(e.exec, QStringLiteral("/usr/bin/true"));
     QCOMPARE(e.icon, QStringLiteral("minimal-icon"));
@@ -145,8 +145,7 @@ NoDisplay=true
 }
 
 void TestDesktopEntry::lookup_returns_invalid_for_missing() {
-    DesktopEntry e = lookup_desktop_entry(
-        QStringLiteral("aurum.test.does-not-exist-xyzzy"));
+    DesktopEntry e = lookup_desktop_entry(QStringLiteral("aurum.test.does-not-exist-xyzzy"));
     QVERIFY(!e.isValid());
     QVERIFY(e.id.isEmpty());
 }

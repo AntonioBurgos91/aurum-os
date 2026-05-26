@@ -18,9 +18,6 @@
 // Spawned from the .desktop file as e.g.:
 //   Exec=aurum-coming-soon aurum-browser "Browser" "Install firefox or chromium"
 
-#include "core_services.h"
-#include "style_engine.h"
-
 #include <QApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -28,8 +25,10 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
-
 #include <iostream>
+
+#include "core_services.h"
+#include "style_engine.h"
 
 extern "C" void init_aqua_style();
 
@@ -42,8 +41,8 @@ int main(int argc, char* argv[]) {
     // would inherit "aurum-coming-soon" → clicking ANY placeholder would focus
     // the FIRST one open, regardless of which app the user wanted. Setting it
     // per-invocation gives each placeholder its own identity.
-    const QString app_id     = argc > 1 ? QString::fromUtf8(argv[1]) : "aurum-placeholder";
-    const QString display    = argc > 2 ? QString::fromUtf8(argv[2]) : app_id;
+    const QString app_id = argc > 1 ? QString::fromUtf8(argv[1]) : "aurum-placeholder";
+    const QString display = argc > 2 ? QString::fromUtf8(argv[2]) : app_id;
     const QString install_to = argc > 3 ? QString::fromUtf8(argv[3]) : QString();
 
     QGuiApplication::setApplicationName(app_id);
@@ -59,16 +58,16 @@ int main(int argc, char* argv[]) {
 
     // Expose the three strings to QML as context properties — cheap and
     // avoids registering a typed model for three immutable values.
-    engine.rootContext()->setContextProperty("appId",        app_id);
-    engine.rootContext()->setContextProperty("displayName",  display);
-    engine.rootContext()->setContextProperty("installHint",  install_to);
+    engine.rootContext()->setContextProperty("appId", app_id);
+    engine.rootContext()->setContextProperty("displayName", display);
+    engine.rootContext()->setContextProperty("installHint", install_to);
 
     const QString qml = resolve_qml_path("ComingSoon.qml", argv[0]);
     if (qml.isEmpty()) return 2;
     engine.load(QUrl::fromLocalFile(qml));
     if (engine.rootObjects().isEmpty()) return 1;
 
-    std::cerr << "[coming-soon] " << app_id.toStdString()
-              << " — \"" << display.toStdString() << "\"\n";
+    std::cerr << "[coming-soon] " << app_id.toStdString() << " — \"" << display.toStdString()
+              << "\"\n";
     return app.exec();
 }

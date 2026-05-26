@@ -17,7 +17,6 @@
 #include <QString>
 #include <QStringList>
 #include <QTextStream>
-
 #include <map>
 #include <memory>
 #include <mutex>
@@ -41,8 +40,7 @@ QStringList desktop_search_paths() {
     roots << home + "/applications";
 
     auto dirs = qEnvironmentVariable("XDG_DATA_DIRS", "/usr/local/share:/usr/share");
-    for (const auto& d : dirs.split(':', Qt::SkipEmptyParts))
-        roots << d + "/applications";
+    for (const auto& d : dirs.split(':', Qt::SkipEmptyParts)) roots << d + "/applications";
 
     // Flatpak exports go through this path even without XDG_DATA_DIRS munging.
     roots << "/var/lib/flatpak/exports/share/applications";
@@ -57,31 +55,29 @@ DesktopEntry parse_one(const QString& path) {
     ini.beginGroup("Desktop Entry");
 
     DesktopEntry e;
-    e.path             = path;
-    e.id               = QFileInfo(path).completeBaseName();
-    e.name             = ini.value("Name").toString();
-    e.genericName      = ini.value("GenericName").toString();
-    e.comment          = ini.value("Comment").toString();
-    e.icon             = ini.value("Icon").toString();
-    e.exec             = ini.value("Exec").toString();
-    e.tryExec          = ini.value("TryExec").toString();
+    e.path = path;
+    e.id = QFileInfo(path).completeBaseName();
+    e.name = ini.value("Name").toString();
+    e.genericName = ini.value("GenericName").toString();
+    e.comment = ini.value("Comment").toString();
+    e.icon = ini.value("Icon").toString();
+    e.exec = ini.value("Exec").toString();
+    e.tryExec = ini.value("TryExec").toString();
     e.workingDirectory = ini.value("Path").toString();
-    e.terminal         = ini.value("Terminal").toBool();
-    e.noDisplay        = ini.value("NoDisplay").toBool();
-    e.hidden           = ini.value("Hidden").toBool();
+    e.terminal = ini.value("Terminal").toBool();
+    e.noDisplay = ini.value("NoDisplay").toBool();
+    e.hidden = ini.value("Hidden").toBool();
 
     auto cats = ini.value("Categories").toString();
-    if (!cats.isEmpty())
-        e.categories = cats.split(';', Qt::SkipEmptyParts);
+    if (!cats.isEmpty()) e.categories = cats.split(';', Qt::SkipEmptyParts);
 
-    if (ini.value("Type").toString() != "Application")
-        e.id.clear();
+    if (ini.value("Type").toString() != "Application") e.id.clear();
 
     ini.endGroup();
     return e;
 }
 
-} // namespace
+}  // namespace
 
 // Field codes per the XDG Desktop Entry spec, section "The Exec key".
 // We drop them entirely for the simple "user clicks dock icon" flow — file
@@ -104,9 +100,9 @@ QVector<DesktopEntry> scan_desktop_entries() {
         const auto files = dir.entryInfoList(QStringList{"*.desktop"}, QDir::Files);
         for (const auto& fi : files) {
             DesktopEntry e = parse_one(fi.absoluteFilePath());
-            if (!e.isValid())   continue;
+            if (!e.isValid()) continue;
             if (e.noDisplay || e.hidden) continue;
-            if (seen_ids.contains(e.id)) continue; // earlier root wins
+            if (seen_ids.contains(e.id)) continue;  // earlier root wins
             seen_ids << e.id;
             out << e;
         }
@@ -132,8 +128,7 @@ qint64 launch_command(const QString& command_line) {
         return 0;
     }
     qint64 pid = 0;
-    const bool ok = QProcess::startDetached(parts.first(), parts.mid(1),
-                                            QString{}, &pid);
+    const bool ok = QProcess::startDetached(parts.first(), parts.mid(1), QString{}, &pid);
     if (!ok) {
         qWarning() << "[core] failed to spawn:" << command_line;
         return 0;
@@ -148,9 +143,7 @@ qint64 launch_command(const QString& command_line) {
 // degrades to "always spawn").
 static QString resolve_hyprctl() {
     static const QString cached = []() -> QString {
-        for (const auto& c : { "/usr/bin/hyprctl",
-                               "/usr/local/bin/hyprctl",
-                               "/bin/hyprctl" }) {
+        for (const auto& c : {"/usr/bin/hyprctl", "/usr/local/bin/hyprctl", "/bin/hyprctl"}) {
             if (QFileInfo::exists(c)) return QString::fromLatin1(c);
         }
         return {};
@@ -176,7 +169,10 @@ static bool hyprctl_has_window_with_class(const QString& cls) {
     if (hyprctl.isEmpty() || cls.isEmpty()) return false;
     QProcess p;
     p.start(hyprctl, {"clients", "-j"});
-    if (!p.waitForFinished(kHyprctlTimeoutMs)) { p.kill(); return false; }
+    if (!p.waitForFinished(kHyprctlTimeoutMs)) {
+        p.kill();
+        return false;
+    }
     if (p.exitCode() != 0) return false;
     QJsonParseError err{};
     const QJsonDocument doc = QJsonDocument::fromJson(p.readAllStandardOutput(), &err);
@@ -213,7 +209,10 @@ static bool hyprctl_focus_class(const QString& cls) {
     if (hyprctl.isEmpty() || cls.isEmpty()) return false;
     QProcess p;
     p.start(hyprctl, {"dispatch", "focuswindow", "class:" + cls});
-    if (!p.waitForFinished(kHyprctlTimeoutMs)) { p.kill(); return false; }
+    if (!p.waitForFinished(kHyprctlTimeoutMs)) {
+        p.kill();
+        return false;
+    }
     return p.exitCode() == 0;
 }
 
@@ -257,18 +256,17 @@ qint64 launch_desktop_entry(const DesktopEntry& entry) {
     qint64 pid = 0;
     const bool ok = QProcess::startDetached(
         parts.first(), parts.mid(1),
-        entry.workingDirectory.isEmpty() ? QString{} : entry.workingDirectory,
-        &pid);
+        entry.workingDirectory.isEmpty() ? QString{} : entry.workingDirectory, &pid);
     if (!ok) {
         qWarning() << "[core] failed to spawn entry" << entry.id << "→" << cmdline;
         return 0;
     }
-    qInfo().noquote() << "[core] launched" << entry.id
-                      << "→" << cmdline << "(pid=" + QString::number(pid) + ")";
+    qInfo().noquote() << "[core] launched" << entry.id << "→" << cmdline
+                      << "(pid=" + QString::number(pid) + ")";
     return pid;
 }
 
-} // namespace aurum::core
+}  // namespace aurum::core
 
 // Resolve the QML file path. Centralised so every desktop app uses the same
 // search order (dev override → system install → local install → build tree).
@@ -291,7 +289,7 @@ QString resolve_qml_path(const QString& filename, const char* argv0) {
 
 extern "C" void init_core_services() {
     static std::once_flag init_flag;
-    std::call_once(init_flag, [](){
+    std::call_once(init_flag, []() {
         // Qt logging by convention: stdout is reserved for tool output (e.g.
         // the test binaries that emit JSON). Filter via QT_LOGGING_RULES.
         qInfo().noquote() << "[core-services] initialized; xdg search paths="

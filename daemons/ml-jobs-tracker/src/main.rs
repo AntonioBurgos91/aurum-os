@@ -60,11 +60,20 @@ impl Service {
     #[zbus(name = "runs")]
     async fn runs(&self) -> Vec<(String, String, String, String, String, i64)> {
         let s = self.state.lock().await;
-        s.runs.iter().map(|r| {
-            let iso = chrono_iso_from_ms(r.start_ms);
-            (r.run_id.clone(), r.experiment_id.clone(), r.name.clone(),
-             r.status.clone(), iso, r.duration_s)
-        }).collect()
+        s.runs
+            .iter()
+            .map(|r| {
+                let iso = chrono_iso_from_ms(r.start_ms);
+                (
+                    r.run_id.clone(),
+                    r.experiment_id.clone(),
+                    r.name.clone(),
+                    r.status.clone(),
+                    iso,
+                    r.duration_s,
+                )
+            })
+            .collect()
     }
 
     #[zbus(name = "tracking_uri")]
@@ -88,7 +97,9 @@ fn chrono_iso_from_ms(ms: i64) -> String {
     let secs = ms / 1000;
     let nanos = ((ms.rem_euclid(1000)) as u32) * 1_000_000;
     let dt = std::time::UNIX_EPOCH + Duration::new(secs as u64, nanos);
-    let dur = dt.duration_since(std::time::UNIX_EPOCH).unwrap_or(Duration::ZERO);
+    let dur = dt
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO);
     // Year/month/day from civil_from_days (Howard Hinnant's algorithm).
     let days = (dur.as_secs() / 86400) as i64;
     let secs_today = (dur.as_secs() % 86400) as u32;
@@ -102,12 +113,16 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
     let doe = (z - era * 146097) as u64;
-    let yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
     let y = yoe as i64 + era * 400;
-    let doy = doe - (365*yoe + yoe/4 - yoe/100);
-    let mp = (5*doy + 2) / 153;
-    let d = (doy - (153*mp + 2)/5 + 1) as u32;
-    let m = if mp < 10 { (mp + 3) as u32 } else { (mp - 9) as u32 };
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 {
+        (mp + 3) as u32
+    } else {
+        (mp - 9) as u32
+    };
     let y = if m <= 2 { y + 1 } else { y };
     (y, m, d)
 }
@@ -123,8 +138,10 @@ async fn poll_loop(state: Arc<Mutex<State>>, notify_poke: Arc<tokio::sync::Notif
 
         let (uri, exp) = {
             let s = state.lock().await;
-            (s.cfg.mlflow.tracking_uri.clone(),
-             s.cfg.mlflow.experiment.clone())
+            (
+                s.cfg.mlflow.tracking_uri.clone(),
+                s.cfg.mlflow.experiment.clone(),
+            )
         };
         let client = match mlflow::Client::new(&uri) {
             Ok(c) => c,
@@ -142,20 +159,18 @@ async fn poll_loop(state: Arc<Mutex<State>>, notify_poke: Arc<tokio::sync::Notif
         };
 
         match client.experiment_id_for(&exp).await {
-            Ok(Some(id)) => {
-                match client.recent_runs(&id, 25).await {
-                    Ok(runs) => {
-                        let mut s = state.lock().await;
-                        s.runs = runs;
-                        s.last_error.clear();
-                    }
-                    Err(e) => {
-                        let mut s = state.lock().await;
-                        s.last_error = format!("recent_runs: {e}");
-                        log::warn!("recent_runs failed: {e}");
-                    }
+            Ok(Some(id)) => match client.recent_runs(&id, 25).await {
+                Ok(runs) => {
+                    let mut s = state.lock().await;
+                    s.runs = runs;
+                    s.last_error.clear();
                 }
-            }
+                Err(e) => {
+                    let mut s = state.lock().await;
+                    s.last_error = format!("recent_runs: {e}");
+                    log::warn!("recent_runs failed: {e}");
+                }
+            },
             Ok(None) => {
                 let mut s = state.lock().await;
                 s.runs.clear();
@@ -183,14 +198,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     log::info!("starting aurum-ml-jobs-tracker");
 
-    let state  = Arc::new(Mutex::new(State::new()));
+    let state = Arc::new(Mutex::new(State::new()));
     let notify = Arc::new(tokio::sync::Notify::new());
 
     let _conn = Builder::session()?
         .name("org.aurumos.MlJobsTrackerService")?
-        .serve_at("/org/aurumos/MlJobsTracker",
-                  Service { state: state.clone(),
-                            notify_poke: notify.clone() })?
+        .serve_at(
+            "/org/aurumos/MlJobsTracker",
+            Service {
+                state: state.clone(),
+                notify_poke: notify.clone(),
+            },
+        )?
         .build()
         .await?;
 

@@ -35,33 +35,33 @@ QJsonArray rowsFromReply(const QDBusMessage& msg) {
         arg.endStructure();
 
         rows.append(QJsonObject{
-            {"title",    name},
+            {"title", name},
             {"subtitle", path},
-            {"icon",     kind == "notebook" ? "x-office-document"
-                       : kind == "model"    ? "applications-science"
-                       : kind == "dataset"  ? "x-office-spreadsheet"
-                       :                      "text-x-generic"},
-            {"score",    score},
-            {"action",   QJsonObject{
-                {"type", "open_path"},
-                {"path", path},
-                {"kind", kind},
-            }},
+            {"icon", kind == "notebook"  ? "x-office-document"
+                     : kind == "model"   ? "applications-science"
+                     : kind == "dataset" ? "x-office-spreadsheet"
+                                         : "text-x-generic"},
+            {"score", score},
+            {"action",
+             QJsonObject{
+                 {"type", "open_path"},
+                 {"path", path},
+                 {"kind", kind},
+             }},
         });
     }
     arg.endArray();
     return rows;
 }
 
-} // namespace
+}  // namespace
 
 FilesPlugin::FilesPlugin(QObject* parent) : SpotlightPlugin(parent) {
     m_iface = new QDBusInterface(
-        "org.aurumos.SpotlightIndexerService", // bus service name (Service-suffix convention)
-        "/org/aurumos/SpotlightIndexer",       // object path
-        "org.aurumos.SpotlightIndexer",        // interface name
-        QDBusConnection::sessionBus(),
-        this);
+        "org.aurumos.SpotlightIndexerService",  // bus service name (Service-suffix convention)
+        "/org/aurumos/SpotlightIndexer",        // object path
+        "org.aurumos.SpotlightIndexer",         // interface name
+        QDBusConnection::sessionBus(), this);
 }
 
 void FilesPlugin::search(const QString& query, int generation) {
@@ -73,8 +73,7 @@ void FilesPlugin::search(const QString& query, int generation) {
     auto pending = m_iface->asyncCall("search", query, quint32{12});
     auto* w = new QDBusPendingCallWatcher(pending, this);
     w->setProperty("generation", generation);
-    connect(w, &QDBusPendingCallWatcher::finished,
-            this, &FilesPlugin::onPendingFinished);
+    connect(w, &QDBusPendingCallWatcher::finished, this, &FilesPlugin::onPendingFinished);
 }
 
 void FilesPlugin::onPendingFinished(QDBusPendingCallWatcher* w) {
@@ -88,4 +87,4 @@ void FilesPlugin::onPendingFinished(QDBusPendingCallWatcher* w) {
     emit resultsReady(id(), gen, rowsFromReply(reply.reply()));
 }
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

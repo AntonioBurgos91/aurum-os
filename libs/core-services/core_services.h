@@ -4,7 +4,6 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
-
 #include <mutex>
 
 namespace aurum::core {
@@ -13,21 +12,23 @@ namespace aurum::core {
 // spotlight consume; the full spec has dozens of keys nothing on the UI side
 // will ever look at.
 struct DesktopEntry {
-    QString id;            // basename without .desktop (e.g. "org.zed.editor")
+    QString id;  // basename without .desktop (e.g. "org.zed.editor")
     QString name;
     QString genericName;
     QString comment;
-    QString icon;          // icon NAME (resolve via QIcon::fromTheme)
-    QString exec;          // raw Exec= line, still with %u/%f/%U fields
+    QString icon;  // icon NAME (resolve via QIcon::fromTheme)
+    QString exec;  // raw Exec= line, still with %u/%f/%U fields
     QString tryExec;
     QStringList categories;
     QString workingDirectory;
     bool terminal = false;
     bool noDisplay = false;
     bool hidden = false;
-    QString path;          // absolute path to the .desktop source file
+    QString path;  // absolute path to the .desktop source file
 
-    bool isValid() const { return !id.isEmpty(); }
+    bool isValid() const {
+        return !id.isEmpty();
+    }
 };
 
 // Scans the standard XDG locations and returns one entry per visible app.
@@ -56,7 +57,7 @@ QString strip_field_codes(QString exec);
 /// same desktop entry id. Public for testing.
 std::mutex& launch_mutex_for(const QString& id);
 
-} // namespace aurum::core
+}  // namespace aurum::core
 
 /// Resolve a QML file path by checking, in order:
 ///  1. $AURUM_QML_DIR/{filename} (dev override)

@@ -13,8 +13,7 @@ namespace {
 // digit, and may use the operator/grouping/whitespace/digit/`.` charset only.
 // This filter avoids triggering the calculator on every word the user types.
 bool looksLikeMath(const QString& q) {
-    static const QRegularExpression mathy(
-        R"(^[\s\d+\-*/().,%^]+$)");
+    static const QRegularExpression mathy(R"(^[\s\d+\-*/().,%^]+$)");
     if (!mathy.match(q).hasMatch()) return false;
     static const QRegularExpression hasDigit(R"(\d)");
     static const QRegularExpression hasOp(R"([+\-*/^%])");
@@ -22,9 +21,11 @@ bool looksLikeMath(const QString& q) {
 }
 
 // Re-map "^" to "**" so the user can type natural exponent syntax.
-QString normalize(QString q) { return q.replace('^', "**"); }
+QString normalize(QString q) {
+    return q.replace('^', "**");
+}
 
-} // namespace
+}  // namespace
 
 CalculatorPlugin::CalculatorPlugin(QObject* parent) : SpotlightPlugin(parent) {}
 
@@ -43,16 +44,17 @@ void CalculatorPlugin::search(const QString& query, int generation) {
     }
     const double value = result.toNumber();
     rows.append(QJsonObject{
-        {"title",    QString::number(value, 'g', 12)},
+        {"title", QString::number(value, 'g', 12)},
         {"subtitle", q + "  =  " + QString::number(value, 'g', 12)},
-        {"icon",     "accessories-calculator"},
-        {"score",    1.0},
-        {"action",   QJsonObject{
-            {"type",  "copy"},
-            {"value", QString::number(value, 'g', 12)},
-        }},
+        {"icon", "accessories-calculator"},
+        {"score", 1.0},
+        {"action",
+         QJsonObject{
+             {"type", "copy"},
+             {"value", QString::number(value, 'g', 12)},
+         }},
     });
     emit resultsReady(id(), generation, rows);
 }
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

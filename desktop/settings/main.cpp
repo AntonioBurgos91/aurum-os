@@ -29,50 +29,71 @@
 
 class GpuLiveBridge : public QObject {
     Q_OBJECT
-    Q_PROPERTY(int     gpuUtilization READ gpuUtilization NOTIFY changed)
-    Q_PROPERTY(int     gpuTemp        READ gpuTemp        NOTIFY changed)
-    Q_PROPERTY(double  vramUsedGb     READ vramUsedGb     NOTIFY changed)
-    Q_PROPERTY(double  vramTotalGb    READ vramTotalGb    NOTIFY changed)
-    Q_PROPERTY(QString gpuName        READ gpuName        NOTIFY changed)
+    Q_PROPERTY(int gpuUtilization READ gpuUtilization NOTIFY changed)
+    Q_PROPERTY(int gpuTemp READ gpuTemp NOTIFY changed)
+    Q_PROPERTY(double vramUsedGb READ vramUsedGb NOTIFY changed)
+    Q_PROPERTY(double vramTotalGb READ vramTotalGb NOTIFY changed)
+    Q_PROPERTY(QString gpuName READ gpuName NOTIFY changed)
 public:
     explicit GpuLiveBridge(QObject* parent = nullptr) : QObject(parent) {
-        m_iface = new QDBusInterface(
-            "org.aurumos.GpuMonitorService",
-            "/org/aurumos/GpuMonitor",
-            "org.aurumos.GpuMonitor",
-            QDBusConnection::sessionBus(), this);
+        m_iface = new QDBusInterface("org.aurumos.GpuMonitorService", "/org/aurumos/GpuMonitor",
+                                     "org.aurumos.GpuMonitor", QDBusConnection::sessionBus(), this);
         auto* t = new QTimer(this);
         connect(t, &QTimer::timeout, this, &GpuLiveBridge::tick);
         t->start(1500);
         tick();
     }
-    int gpuUtilization() const  { return m_util; }
-    int gpuTemp()        const  { return m_temp; }
-    double vramUsedGb()  const  { return m_used / 1073741824.0; }
-    double vramTotalGb() const  { return m_total / 1073741824.0; }
-    QString gpuName()    const  { return m_name; }
+    int gpuUtilization() const {
+        return m_util;
+    }
+    int gpuTemp() const {
+        return m_temp;
+    }
+    double vramUsedGb() const {
+        return m_used / 1073741824.0;
+    }
+    double vramTotalGb() const {
+        return m_total / 1073741824.0;
+    }
+    QString gpuName() const {
+        return m_name;
+    }
 signals:
     void changed();
 private slots:
     void tick() {
-        if (!m_iface->isValid()) { emit changed(); return; }
-        if (auto r = QDBusReply<QString>   (m_iface->call("gpu_name"));         r.isValid()) m_name  = r.value();
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<uint>      (m_iface->call("gpu_utilization"));  r.isValid()) m_util  = static_cast<int>(r.value());
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_used"));        r.isValid()) m_used  = r.value();
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_total"));       r.isValid()) m_total = r.value();
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<uint>      (m_iface->call("temperature"));      r.isValid()) m_temp  = static_cast<int>(r.value());
-        else qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (!m_iface->isValid()) {
+            emit changed();
+            return;
+        }
+        if (auto r = QDBusReply<QString>(m_iface->call("gpu_name")); r.isValid())
+            m_name = r.value();
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<uint>(m_iface->call("gpu_utilization")); r.isValid())
+            m_util = static_cast<int>(r.value());
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_used")); r.isValid())
+            m_used = r.value();
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_total")); r.isValid())
+            m_total = r.value();
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        if (auto r = QDBusReply<uint>(m_iface->call("temperature")); r.isValid())
+            m_temp = static_cast<int>(r.value());
+        else
+            qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
         emit changed();
     }
+
 private:
     QDBusInterface* m_iface = nullptr;
-    int       m_util = 0, m_temp = 0;
+    int m_util = 0, m_temp = 0;
     qulonglong m_used = 0, m_total = 0;
-    QString   m_name = "—";
+    QString m_name = "—";
 };
 
 int main(int argc, char* argv[]) {
@@ -83,9 +104,9 @@ int main(int argc, char* argv[]) {
     app.setDesktopFileName("aurum-settings");
     init_aqua_style();
 
-    aurum::settings::CudaManager     cudaManager;
-    aurum::settings::VenvManager     venvManager;
-    aurum::settings::MlopsConfig     mlopsConfig;
+    aurum::settings::CudaManager cudaManager;
+    aurum::settings::VenvManager venvManager;
+    aurum::settings::MlopsConfig mlopsConfig;
     aurum::settings::ModelPacksModel modelPacksModel;
     GpuLiveBridge gpuLive;
 
@@ -96,11 +117,11 @@ int main(int argc, char* argv[]) {
     if (!dev.isEmpty()) engine.addImportPath(dev);
 
     auto* ctx = engine.rootContext();
-    ctx->setContextProperty("cudaManager",     &cudaManager);
-    ctx->setContextProperty("venvManager",     &venvManager);
-    ctx->setContextProperty("mlopsConfig",     &mlopsConfig);
+    ctx->setContextProperty("cudaManager", &cudaManager);
+    ctx->setContextProperty("venvManager", &venvManager);
+    ctx->setContextProperty("mlopsConfig", &mlopsConfig);
     ctx->setContextProperty("modelPacksModel", &modelPacksModel);
-    ctx->setContextProperty("gpuLive",         &gpuLive);
+    ctx->setContextProperty("gpuLive", &gpuLive);
     // ProfileClient is a process-wide singleton (libs/core-services). HardwarePanel.qml
     // binds to its CONSTANT properties; no signals needed unless the user
     // re-runs detection at runtime via the override button.

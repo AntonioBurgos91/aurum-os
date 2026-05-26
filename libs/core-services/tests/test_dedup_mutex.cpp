@@ -8,9 +8,8 @@
 //      eventually make progress.
 //   2. Threads contending on DIFFERENT ids run concurrently — the lock is
 //      per-id, not global.
-#include <QtTest>
 #include <QElapsedTimer>
-
+#include <QtTest>
 #include <atomic>
 #include <chrono>
 #include <mutex>
@@ -53,8 +52,7 @@ void TestDedupMutex::same_id_serialises_without_deadlock() {
     ts.reserve(kThreads);
     for (int i = 0; i < kThreads; ++i) {
         ts.emplace_back([&completed]() {
-            std::lock_guard<std::mutex> g(
-                launch_mutex_for(QStringLiteral("dedup.test.contended")));
+            std::lock_guard<std::mutex> g(launch_mutex_for(QStringLiteral("dedup.test.contended")));
             // Hold the lock briefly — long enough that overlapping threads
             // actually contend rather than racing through serially by accident.
             std::this_thread::sleep_for(5ms);
@@ -96,8 +94,7 @@ void TestDedupMutex::different_ids_run_in_parallel() {
     // parallel should be ~50ms. 250ms leaves plenty of slack for slow CI
     // schedulers without ever passing in the serial-regression case.
     QVERIFY2(elapsedMs < 250,
-             qPrintable(QStringLiteral("expected parallel < 250ms, got %1ms")
-                            .arg(elapsedMs)));
+             qPrintable(QStringLiteral("expected parallel < 250ms, got %1ms").arg(elapsedMs)));
 }
 
 QTEST_GUILESS_MAIN(TestDedupMutex)

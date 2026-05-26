@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
     app.setDesktopFileName("aurum-finder");
     init_aqua_style();
 
-    aurum::finder::FinderModel  finderModel;
+    aurum::finder::FinderModel finderModel;
     aurum::finder::SidebarModel sidebarModel;
 
     QQmlApplicationEngine engine;
@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     const auto dev = qEnvironmentVariable("AURUM_QML_IMPORT_PATH");
     if (!dev.isEmpty()) engine.addImportPath(dev);
 
-    engine.rootContext()->setContextProperty("finderModel",  &finderModel);
+    engine.rootContext()->setContextProperty("finderModel", &finderModel);
     engine.rootContext()->setContextProperty("sidebarModel", &sidebarModel);
 
     const QString qml = resolve_qml_path("Finder.qml", argv[0]);

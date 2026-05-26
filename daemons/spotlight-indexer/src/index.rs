@@ -18,8 +18,8 @@ use tantivy::{
     doc,
     query::QueryParser,
     schema::{
-        Field, IndexRecordOption, Schema, SchemaBuilder, TextFieldIndexing, TextOptions,
-        FAST, INDEXED, STORED, STRING,
+        Field, IndexRecordOption, Schema, SchemaBuilder, TextFieldIndexing, TextOptions, FAST,
+        INDEXED, STORED, STRING,
     },
     Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument,
 };
@@ -58,14 +58,22 @@ impl Schemas {
             )
             .set_stored();
 
-        let path        = sb.add_text_field("path",       STRING | STORED);
-        let filename    = sb.add_text_field("filename",   text_opts);
-        let extension   = sb.add_text_field("extension",  STRING | STORED);
-        let kind        = sb.add_text_field("kind",       STRING | STORED);
-        let mtime       = sb.add_i64_field ("mtime",      STORED | INDEXED);
-        let size_bytes  = sb.add_u64_field ("size_bytes", STORED | FAST);
+        let path = sb.add_text_field("path", STRING | STORED);
+        let filename = sb.add_text_field("filename", text_opts);
+        let extension = sb.add_text_field("extension", STRING | STORED);
+        let kind = sb.add_text_field("kind", STRING | STORED);
+        let mtime = sb.add_i64_field("mtime", STORED | INDEXED);
+        let size_bytes = sb.add_u64_field("size_bytes", STORED | FAST);
         let schema = sb.build();
-        Self { schema, path, filename, extension, kind, mtime, size_bytes }
+        Self {
+            schema,
+            path,
+            filename,
+            extension,
+            kind,
+            mtime,
+            size_bytes,
+        }
     }
 }
 
@@ -91,7 +99,12 @@ impl Indexer {
             .reader_builder()
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()?;
-        Ok(Self { schemas, index, reader, writer })
+        Ok(Self {
+            schemas,
+            index,
+            reader,
+            writer,
+        })
     }
 
     pub fn upsert(&mut self, p: &Path) {
@@ -102,9 +115,17 @@ impl Indexer {
         if !meta.is_file() {
             return;
         }
-        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
+        let name = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
         let path = p.to_string_lossy().to_string();
-        let ext  = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        let ext = p
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
         let kind = classify(p, &ext);
         let mtime = meta
             .modified()
@@ -130,10 +151,7 @@ impl Indexer {
     }
 
     pub fn delete(&mut self, p: &Path) {
-        let term = tantivy::Term::from_field_text(
-            self.schemas.path,
-            &p.to_string_lossy(),
-        );
+        let term = tantivy::Term::from_field_text(self.schemas.path, &p.to_string_lossy());
         self.writer.delete_term(term);
     }
 
@@ -162,10 +180,7 @@ impl Indexer {
 
     pub fn search(&self, query: &str, limit: usize) -> tantivy::Result<Vec<Hit>> {
         let searcher = self.reader.searcher();
-        let parser = QueryParser::for_index(
-            &self.index,
-            vec![self.schemas.filename],
-        );
+        let parser = QueryParser::for_index(&self.index, vec![self.schemas.filename]);
         let q = parser.parse_query(query)?;
         let top = searcher.search(&q, &TopDocs::with_limit(limit))?;
 
@@ -175,8 +190,14 @@ impl Indexer {
             let path = first_text(&doc, self.schemas.path).unwrap_or_default();
             let kind = first_text(&doc, self.schemas.kind).unwrap_or_else(|| "file".into());
             let name = first_text(&doc, self.schemas.filename).unwrap_or_default();
-            let size = first_u64(&doc,  self.schemas.size_bytes).unwrap_or(0);
-            hits.push(Hit { kind, name, path, size_bytes: size, score });
+            let size = first_u64(&doc, self.schemas.size_bytes).unwrap_or(0);
+            hits.push(Hit {
+                kind,
+                name,
+                path,
+                size_bytes: size,
+                score,
+            });
         }
         Ok(hits)
     }
@@ -203,17 +224,20 @@ fn first_u64(doc: &TantivyDocument, field: Field) -> Option<u64> {
 fn classify(path: &Path, ext: &str) -> String {
     let in_dir = |d: &str| {
         path.components().any(|c| {
-            c.as_os_str().to_str().map(|s| s.eq_ignore_ascii_case(d)).unwrap_or(false)
+            c.as_os_str()
+                .to_str()
+                .map(|s| s.eq_ignore_ascii_case(d))
+                .unwrap_or(false)
         })
     };
 
     match ext {
-        "ipynb"                       => "notebook".into(),
+        "ipynb" => "notebook".into(),
         "safetensors" | "gguf" | "pt" | "bin" | "onnx" | "ckpt" => "model".into(),
         "parquet" | "arrow" | "feather" | "csv" | "tsv" | "jsonl" => "dataset".into(),
-        _ if in_dir("datasets")  => "dataset".into(),
-        _ if in_dir("models")    => "model".into(),
+        _ if in_dir("datasets") => "dataset".into(),
+        _ if in_dir("models") => "model".into(),
         _ if in_dir("notebooks") => "notebook".into(),
-        _                        => "file".into(),
+        _ => "file".into(),
     }
 }

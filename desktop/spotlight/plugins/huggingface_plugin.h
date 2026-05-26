@@ -19,10 +19,16 @@ class HuggingFacePlugin : public SpotlightPlugin {
 public:
     explicit HuggingFacePlugin(QObject* parent = nullptr);
 
-    QString id() const override          { return "huggingface"; }
-    QString displayName() const override { return "Hugging Face"; }
-    int     priority() const override    { return 3; }
-    void    search(const QString& query, int generation) override;
+    QString id() const override {
+        return "huggingface";
+    }
+    QString displayName() const override {
+        return "Hugging Face";
+    }
+    int priority() const override {
+        return 3;
+    }
+    void search(const QString& query, int generation) override;
 
 private slots:
     void onReplyFinished();
@@ -34,4 +40,4 @@ private:
     int m_pendingGeneration = -1;
 };
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

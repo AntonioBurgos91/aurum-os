@@ -20,16 +20,16 @@ namespace aurum::installer {
 //     supports via --filesystem bcachefs in recent releases (>= 0.7).
 class InstallerBackend : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QString device      MEMBER m_device      NOTIFY paramsChanged)
-    Q_PROPERTY(QString filesystem  MEMBER m_filesystem  NOTIFY paramsChanged)
-    Q_PROPERTY(QString hostname    MEMBER m_hostname    NOTIFY paramsChanged)
-    Q_PROPERTY(QString fullName    MEMBER m_fullName    NOTIFY paramsChanged)
-    Q_PROPERTY(QString username    MEMBER m_username    NOTIFY paramsChanged)
-    Q_PROPERTY(QString password    MEMBER m_password    NOTIFY paramsChanged)
-    Q_PROPERTY(QString locale      MEMBER m_locale      NOTIFY paramsChanged)
-    Q_PROPERTY(QString keyboard    MEMBER m_keyboard    NOTIFY paramsChanged)
-    Q_PROPERTY(QString timezone    MEMBER m_timezone    NOTIFY paramsChanged)
-    Q_PROPERTY(bool encryptDisk    MEMBER m_encryptDisk NOTIFY paramsChanged)
+    Q_PROPERTY(QString device MEMBER m_device NOTIFY paramsChanged)
+    Q_PROPERTY(QString filesystem MEMBER m_filesystem NOTIFY paramsChanged)
+    Q_PROPERTY(QString hostname MEMBER m_hostname NOTIFY paramsChanged)
+    Q_PROPERTY(QString fullName MEMBER m_fullName NOTIFY paramsChanged)
+    Q_PROPERTY(QString username MEMBER m_username NOTIFY paramsChanged)
+    Q_PROPERTY(QString password MEMBER m_password NOTIFY paramsChanged)
+    Q_PROPERTY(QString locale MEMBER m_locale NOTIFY paramsChanged)
+    Q_PROPERTY(QString keyboard MEMBER m_keyboard NOTIFY paramsChanged)
+    Q_PROPERTY(QString timezone MEMBER m_timezone NOTIFY paramsChanged)
+    Q_PROPERTY(bool encryptDisk MEMBER m_encryptDisk NOTIFY paramsChanged)
 
     Q_PROPERTY(int progress READ progress NOTIFY progressChanged)
     Q_PROPERTY(QString status READ status NOTIFY progressChanged)
@@ -40,11 +40,21 @@ class InstallerBackend : public QObject {
 public:
     explicit InstallerBackend(QObject* parent = nullptr);
 
-    int progress() const     { return m_progress; }
-    QString status() const   { return m_status; }
-    QString lastLog() const  { return m_log; }
-    bool running() const     { return m_running; }
-    bool succeeded() const   { return m_succeeded; }
+    int progress() const {
+        return m_progress;
+    }
+    QString status() const {
+        return m_status;
+    }
+    QString lastLog() const {
+        return m_log;
+    }
+    bool running() const {
+        return m_running;
+    }
+    bool succeeded() const {
+        return m_succeeded;
+    }
 
     // Validate the collected parameters; returns empty string if OK,
     // otherwise a human-readable reason. QML calls this before "Install".
@@ -74,23 +84,23 @@ private:
     void appendLog(const QString& line);
     void parseProgressLine(const QString& line);
 
-    QString m_device      = "/dev/nvme0n1";
-    QString m_filesystem  = "bcachefs";   // AurumOS default; ADR-0004
-    QString m_hostname    = "aurumos";
+    QString m_device = "/dev/nvme0n1";
+    QString m_filesystem = "bcachefs";  // AurumOS default; ADR-0004
+    QString m_hostname = "aurumos";
     QString m_fullName;
     QString m_username;
     QString m_password;
-    QString m_locale      = "en_US.UTF-8";
-    QString m_keyboard    = "us";
-    QString m_timezone    = "Etc/UTC";
-    bool    m_encryptDisk = false;
+    QString m_locale = "en_US.UTF-8";
+    QString m_keyboard = "us";
+    QString m_timezone = "Etc/UTC";
+    bool m_encryptDisk = false;
 
     QProcess m_proc;
-    int      m_progress = 0;
-    QString  m_status   = "Idle";
-    QString  m_log;
-    bool     m_running   = false;
-    bool     m_succeeded = false;
+    int m_progress = 0;
+    QString m_status = "Idle";
+    QString m_log;
+    bool m_running = false;
+    bool m_succeeded = false;
 };
 
-} // namespace aurum::installer
+}  // namespace aurum::installer

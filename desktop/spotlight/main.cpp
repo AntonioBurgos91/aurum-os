@@ -12,14 +12,13 @@
 
 #include "core_services.h"
 #include "ml_integrations.h"
-#include "search_aggregator.h"
-#include "style_engine.h"
-
 #include "plugins/apps_plugin.h"
 #include "plugins/arxiv_plugin.h"
 #include "plugins/calculator_plugin.h"
 #include "plugins/files_plugin.h"
 #include "plugins/huggingface_plugin.h"
+#include "search_aggregator.h"
+#include "style_engine.h"
 
 int main(int argc, char* argv[]) {
     init_core_services();

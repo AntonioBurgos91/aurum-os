@@ -14,10 +14,16 @@ class FilesPlugin : public SpotlightPlugin {
 public:
     explicit FilesPlugin(QObject* parent = nullptr);
 
-    QString id() const override          { return "files"; }
-    QString displayName() const override { return "Files"; }
-    int     priority() const override    { return 1; }
-    void    search(const QString& query, int generation) override;
+    QString id() const override {
+        return "files";
+    }
+    QString displayName() const override {
+        return "Files";
+    }
+    int priority() const override {
+        return 1;
+    }
+    void search(const QString& query, int generation) override;
 
 private slots:
     void onPendingFinished(QDBusPendingCallWatcher* w);
@@ -27,4 +33,4 @@ private:
     int m_active_generation = -1;
 };
 
-} // namespace aurum::spotlight
+}  // namespace aurum::spotlight

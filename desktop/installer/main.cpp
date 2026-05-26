@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
     app.setDesktopFileName("aurum-installer");
     init_aqua_style();
 
-    aurum::installer::DiskLister     diskLister;
+    aurum::installer::DiskLister diskLister;
     aurum::installer::InstallerBackend backend;
 
     QQmlApplicationEngine engine;
@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
 
     auto* ctx = engine.rootContext();
     ctx->setContextProperty("diskLister", &diskLister);
-    ctx->setContextProperty("backend",    &backend);
+    ctx->setContextProperty("backend", &backend);
 
     const QString qml = resolve_qml_path("Installer.qml", argv[0]);
     engine.load(QUrl::fromLocalFile(qml));

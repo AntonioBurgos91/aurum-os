@@ -30,10 +30,17 @@ use crate::watch::FsChange;
 fn default_roots() -> Vec<PathBuf> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
     // Order matters only for cosmetic logs.
-    ["datasets", "models", "notebooks", "Documents", "Downloads", "Desktop"]
-        .iter()
-        .map(|d| home.join(d))
-        .collect()
+    [
+        "datasets",
+        "models",
+        "notebooks",
+        "Documents",
+        "Downloads",
+        "Desktop",
+    ]
+    .iter()
+    .map(|d| home.join(d))
+    .collect()
 }
 
 fn index_dir() -> PathBuf {
@@ -109,9 +116,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("starting aurum-spotlight-indexer");
 
     let roots = default_roots();
-    let dir   = index_dir();
+    let dir = index_dir();
     log::info!("index dir: {}", dir.display());
-    for r in &roots { log::info!("watching: {}", r.display()); }
+    for r in &roots {
+        log::info!("watching: {}", r.display());
+    }
 
     // --- Open the tantivy index FIRST. If it can't open we abort the daemon
     // rather than binding a bus name that maps to a non-functional service.
@@ -120,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let indexer = Indexer::open(&dir)?;
     let state = Arc::new(Mutex::new(State {
         indexer,
-        last_indexed: 0,   // becomes >0 once the initial crawl commits
+        last_indexed: 0, // becomes >0 once the initial crawl commits
     }));
 
     // --- D-Bus interface (bound AFTER the index is open so the bus name only
@@ -130,7 +139,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .name("org.aurumos.SpotlightIndexerService")?
         .serve_at(
             "/org/aurumos/SpotlightIndexer",
-            SpotlightService { state: state.clone(), roots: roots.clone() },
+            SpotlightService {
+                state: state.clone(),
+                roots: roots.clone(),
+            },
         )?
         .build()
         .await?;
@@ -144,15 +156,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let crawl_roots = roots.clone();
     tokio::task::spawn_blocking(move || {
         let t0 = Instant::now();
-        log::info!("starting initial crawl across {} root(s)", crawl_roots.len());
+        log::info!(
+            "starting initial crawl across {} root(s)",
+            crawl_roots.len()
+        );
         let mut s = crawl_state.blocking_lock();
         s.indexer.crawl(crawl_roots);
         if let Err(e) = s.indexer.commit() {
             log::warn!("initial commit failed: {e}");
         }
         s.last_indexed = now_secs();
-        log::info!("initial crawl done: {} docs in {:?}",
-                   s.indexer.doc_count(), t0.elapsed());
+        log::info!(
+            "initial crawl done: {} docs in {:?}",
+            s.indexer.doc_count(),
+            t0.elapsed()
+        );
     });
 
     // --- Watcher → debounced batch upserter -------------------------------

@@ -119,14 +119,13 @@ resolve_paths() {
 # --- Profile sourcing --------------------------------------------------------
 # In the Docker preview /etc/aurum/profile.conf is absent; fall through to
 # `lite` so the script behaves like the GPU-less default it represents.
+#
+# Note: set -a and set +a are split onto separate lines so the linter
+# honours the source directive below (it ignores it when source is preceded
+# by another command on the same line).
 source_profile() {
     AURUM_PROFILE="lite"
     if [[ -r "${PROFILE_CONF}" ]]; then
-        # shellcheck source=/dev/null directive must sit on the line directly
-        # above the source statement, with NO other commands on that line.
-        # `set -a` and `set +a` are split onto separate lines so shellcheck
-        # honours the directive (it ignores it when source is preceded by
-        # other commands on the same line).
         set -a
         # shellcheck source=/dev/null
         source "${PROFILE_CONF}"

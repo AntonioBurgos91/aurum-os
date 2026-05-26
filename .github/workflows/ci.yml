@@ -101,10 +101,14 @@ jobs:
         run: cd build && ctest --output-on-failure
 
   # --- smoke (integration, slowest) -------------------------------------
-  # Builds the full container stack (aurumos:dev → aurumos:desktop) and runs
-  # the smoke-test suite against it. Layer-cached via buildx + GHA cache, so
-  # only Dockerfile/CMakeLists/Cargo.toml churn triggers a long rebuild.
-  # First build (cold cache): ~25 min. Warm: ~3-5 min.
+  # Builds aurumos:dev → aurumos:desktop using classic `docker build` so both
+  # tags live on the same Docker daemon and the second build can resolve
+  # `FROM aurumos:dev` locally. We tried buildx + GHA layer cache before but
+  # buildx with the docker-container driver runs in an isolated builder that
+  # doesn't share images with the host daemon — so the FROM lookup fell
+  # through to docker.io and 401'd. Trade-off: every push pays the full cold
+  # build cost (~25 min). Layer cache can be re-introduced later via a
+  # multi-stage Dockerfile that fuses both images into one.
   smoke:
     runs-on: ubuntu-24.04
     needs: [build-rust, build-cpp]
@@ -112,30 +116,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Free up disk space
+        # The runner ships with ~14 GB free. aurumos:dev pulls ~2 GB of Qt6 +
+        # Rust + clang-18, aurumos:desktop adds Hyprland + a full CMake build
+        # (~3-4 GB). Pre-emptively delete the preinstalled toolchains we
+        # don't need (Android SDK, .NET, large Hosted Tool Cache entries) so
+        # the second build doesn't ENOSPC mid-way.
+        run: |
+          echo "Before:"; df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune -af || true
+          echo "After:"; df -h /
 
-      # Layer cache for aurumos:dev (base dev image — ~2 GB of toolchain)
-      - name: Build aurumos:dev (base)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          tags: aurumos:dev
-          load: true
-          cache-from: type=gha,scope=aurumos-dev
-          cache-to: type=gha,scope=aurumos-dev,mode=max
+      - name: Build aurumos:dev (base toolchain)
+        run: |
+          echo "=== building aurumos:dev (cold ~10-12 min) ==="
+          docker build -t aurumos:dev .
 
-      # aurumos:desktop layers Hyprland + Qt builds + Rust daemons on top
-      - name: Build aurumos:desktop
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: distro/demo/Dockerfile.desktop
-          tags: aurumos:desktop
-          load: true
-          cache-from: type=gha,scope=aurumos-desktop
-          cache-to: type=gha,scope=aurumos-desktop,mode=max
+      - name: Build aurumos:desktop (Hyprland + Qt + Rust daemons)
+        run: |
+          echo "=== building aurumos:desktop (cold ~10-15 min) ==="
+          docker build -f distro/demo/Dockerfile.desktop -t aurumos:desktop .
 
       - name: Start container
         run: |
@@ -146,9 +148,9 @@ jobs:
 
       - name: Wait for noVNC to come up
         run: |
-          # Poll the noVNC HTML5 endpoint until it answers (max 90s). This
-          # replaces the previous blind `sleep 30` — the compositor + daemons
-          # take variable time to wire up in the headless backend.
+          # Poll the noVNC HTML5 endpoint until it answers (max 90s). The
+          # compositor + daemons take variable time to wire up in the
+          # headless backend, so a blind `sleep 30` was a coin-flip.
           for i in $(seq 1 45); do
             if curl -fsS http://localhost:6080/vnc.html >/dev/null 2>&1; then
               echo "noVNC ready after ${i}*2s"

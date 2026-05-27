@@ -1,0 +1,99 @@
+name: Release Smoke (full integration)
+
+# Runs the full Hyprland-in-Docker integration smoke. Slow (~25 min cold,
+# ~3-5 min if Hyprland is well-behaved on this runner). Triggered ONLY by:
+#   - Pushing a version tag (v0.2.0, v0.2.1, etc.)
+#   - Manual dispatch from the Actions UI
+# Day-to-day pushes use the lint + build jobs in ci.yml.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free up disk space
+        # The runner ships with ~14 GB free. aurumos:dev pulls ~2 GB of Qt6 +
+        # Rust + clang-18, aurumos:desktop adds Hyprland + a full CMake build
+        # (~3-4 GB). Pre-emptively delete the preinstalled toolchains we
+        # don't need (Android SDK, .NET, large Hosted Tool Cache entries) so
+        # the second build doesn't ENOSPC mid-way.
+        run: |
+          echo "Before:"; df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune -af || true
+          echo "After:"; df -h /
+
+      - name: Build aurumos:dev (base toolchain)
+        run: |
+          echo "=== building aurumos:dev (cold ~10-12 min) ==="
+          docker build -t aurumos:dev .
+
+      - name: Build aurumos:desktop (Hyprland + Qt + Rust daemons)
+        run: |
+          echo "=== building aurumos:desktop (cold ~10-15 min) ==="
+          docker build -f distro/demo/Dockerfile.desktop -t aurumos:desktop .
+
+      - name: Start container
+        # Hyprland 0.46+ uses aquamarine instead of wlroots directly for its
+        # backend abstraction. wlr-style env vars (WLR_BACKENDS=headless) are
+        # ignored; the equivalent for aquamarine is AQ_BACKENDS=headless. Pass
+        # both so the container works across Hyprland versions.
+        run: |
+          docker run -d --name aurum-desktop \
+            -p 6080:6080 -p 5900:5900 \
+            -e GPU_BACKEND=headless \
+            -e AQ_BACKENDS=headless \
+            -e WLR_BACKENDS=headless \
+            aurumos:desktop
+
+      - name: Wait for noVNC to come up
+        run: |
+          # Poll the noVNC HTML5 endpoint until it answers (max 120s). The
+          # compositor + daemons take variable time to wire up in headless
+          # mode. If Hyprland aborts during init the container exits, in
+          # which case we surface the logs immediately rather than waiting
+          # out the full timeout.
+          for i in $(seq 1 60); do
+            if ! docker ps --filter name=aurum-desktop --filter status=running -q | grep -q .; then
+              echo "::error::aurum-desktop container exited — dumping logs"
+              docker logs aurum-desktop | tail -200
+              exit 1
+            fi
+            if curl -fsS http://localhost:6080/vnc.html >/dev/null 2>&1; then
+              echo "noVNC ready after ${i}*2s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::noVNC never came up — dumping container logs"
+          docker logs aurum-desktop | tail -200
+          exit 1
+
+      - name: Run smoke
+        run: ./tools/smoke-test.sh --json | tee smoke-output.json
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          echo "=== docker logs aurum-desktop ==="
+          docker logs aurum-desktop || true
+          echo "=== /var/log/aurum/* ==="
+          docker exec aurum-desktop bash -c 'tail -200 /var/log/aurum/*.log 2>/dev/null' || true
+          echo "=== Hyprland crash report (if any) ==="
+          docker exec aurum-desktop bash -c 'cat /home/developer/.cache/hyprland/hyprlandCrashReport*.txt 2>/dev/null' || true
+
+      - name: Upload smoke artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-output-${{ github.ref_name }}
+          path: smoke-output.json

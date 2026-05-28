@@ -209,9 +209,29 @@ See [`docs/architecture.md`](docs/architecture.md) for the full diagrams.
 ```bash
 git clone https://github.com/AntonioBurgos91/aurum-os.git
 cd aurum-os
-distro/demo/run-preview.sh             # spins up the desktop in a noVNC iframe
-# → http://localhost:6080/vnc.html
+distro/demo/run-preview.sh             # NVIDIA host: spins up the desktop in a noVNC iframe
+# → http://localhost:6080/vnc.html?resize=scale
 ```
+
+The preview renders on **AMD / Intel** GPUs too (DRM passthrough), not just
+NVIDIA. `run-preview.sh` targets an NVIDIA host; on an AMD/Intel box build the
+images and pass the render nodes directly:
+
+```bash
+docker build -t aurumos:dev .
+docker build -t aurumos:desktop -f distro/demo/Dockerfile.desktop .
+
+docker run -d --name aurum-desktop \
+  --device /dev/dri/card1 --device /dev/dri/renderD128 \
+  --group-add "$(stat -c '%g' /dev/dri/renderD128)" \
+  --group-add "$(stat -c '%g' /dev/dri/card1)" \
+  --tmpfs /run:rw,mode=0755 -p 6080:6080 -p 5900:5900 \
+  -e GPU_BACKEND=drm -e QT_ICON_THEME=Papirus \
+  aurumos:desktop
+# → http://localhost:6080/vnc.html?resize=scale
+```
+
+No GPU at all? Add `-e GPU_BACKEND=headless` for the software (pixman) renderer.
 
 ### 2. Install the SOTA stack on an existing Pop!_OS / Ubuntu 24.04 host
 
@@ -328,6 +348,24 @@ trailing-whitespace, large-file guard) via [`.pre-commit-config.yaml`](.pre-comm
 | 12 | ⏳ | Benchmark suite + comparison harness (vs Ubuntu, Pop!_OS, Lambda Stack) |
 | 13 | ⏳ | Production hardening — signed ISOs · APT repo · crash reporter opt-in · i18n |
 | 14 | ⏳ | Launch — landing site · docs site · demo video · comparison matrix |
+
+**Recent (post-Wave 10):**
+
+- ✅ **Hardware-agnostic preview** — the noVNC desktop now renders on AMD APUs,
+  Intel iGPUs and NVIDIA via `/dev/dri` passthrough, not just NVIDIA. Fixed the
+  empty-dock (missing icon theme + `.desktop` staging), the `QT_ICON_THEME`
+  override being ignored, and off-screen dock positioning on multi-output hosts.
+- ✅ **CPU-only install path** — `jax` / `tensorflow-cpu` instead of the CUDA
+  wheels, NVIDIA-repo step guarded behind a GPU check, relocatable shared venv.
+- 🆕 New default wallpaper.
+
+**Still rough / known gaps:**
+
+- Menubar GPU/VRAM/temp applets show **simulated** telemetry when no NVML
+  device is present (the daemons run in simulation mode — values aren't real).
+- Dock `.desktop` entries point at apps (Ollama, JupyterLab, …) that aren't
+  installed in the bare preview, so clicking them is a no-op until the model
+  packs / tools are installed.
 
 Per-wave detail in [`CHANGELOG.md`](CHANGELOG.md).
 

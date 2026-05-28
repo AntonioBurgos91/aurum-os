@@ -218,8 +218,8 @@ if [ -n "$DOCK_ADDR" ]; then
     # bottom with 12 px margin.
     read DW DH <<<"$(hyprctl clients -j 2>/dev/null \
         | python3 -c 'import json,sys; d=json.load(sys.stdin); w=[w for w in d if w["class"]=="aurum-dock"][0]; print(w["size"][0], w["size"][1])')"
-    SCREEN_W=$(hyprctl monitors -j 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["width"])')
-    SCREEN_H=$(hyprctl monitors -j 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["height"])')
+    SCREEN_W=$(hyprctl monitors -j 2>/dev/null | python3 -c 'import json,sys; m=json.load(sys.stdin); v=[x for x in m if x["name"]=="VIRTUAL-1"] or m; print(v[0]["width"])')
+    SCREEN_H=$(hyprctl monitors -j 2>/dev/null | python3 -c 'import json,sys; m=json.load(sys.stdin); v=[x for x in m if x["name"]=="VIRTUAL-1"] or m; print(v[0]["height"])')
     DX=$(( (SCREEN_W - DW) / 2 ))
     DY=$(( SCREEN_H - DH - 12 ))
     hyprctl dispatch focuswindow  "address:$DOCK_ADDR" >/dev/null 2>&1 || true

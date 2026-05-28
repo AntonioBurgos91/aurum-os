@@ -101,6 +101,15 @@ RUN install -d /usr/share/aurum-os/qml \
 RUN install -d /usr/share/aurum-os/scripts \
     && install -m 0755 /opt/aurum-src/scripts/parquet_peek.py /usr/share/aurum-os/scripts/parquet_peek.py
 
+# --- Icon theme + wallpaper + .desktop (AMD-LITE FIX) ---------------------
+# El Dockerfile original no instalaba icon-theme ni copiaba el wallpaper, por
+# eso el dock salia sin iconos y swaybg caia al color solido. Instala Papirus,
+# copia los wallpapers y fija default.png + los .desktop de las apps del dock.
+RUN apt-get update && apt-get install -y --no-install-recommends papirus-icon-theme hicolor-icon-theme adwaita-icon-theme && rm -rf /var/lib/apt/lists/*
+RUN install -d /usr/share/aurum-os/wallpapers && cp /opt/aurum-src/distro/assets/wallpapers/*.png /usr/share/aurum-os/wallpapers/ && ln -sfn /usr/share/aurum-os/wallpapers/aurum-purple-1024.png /usr/share/aurum-os/wallpapers/default.png && install -d /usr/share/applications && cp /opt/aurum-src/distro/applications/*.desktop /usr/share/applications/ 2>/dev/null || true
+# Honrar QT_ICON_THEME para que el dock use Papirus (ver libs/aqua-qt/style_engine.cpp).
+ENV QT_ICON_THEME=Papirus
+
 # --- Aurum Hyprland config for the preview --------------------------------
 RUN install -d /etc/aurum/hypr \
     && cp /opt/aurum-src/distro/hyprland-fork/aurum.conf /etc/aurum/hypr/aurum.conf

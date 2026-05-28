@@ -61,7 +61,7 @@ done
 
 # Symlink the default-resolution one to a canonical name swaybg & the desktop
 # both reference. Easier than parameterising every consumer.
-ln -sfn "$WPS_DST/sequoia-dark-1600x1000.png" "$WPS_DST/default.png"
+ln -sfn "$WPS_DST/aurum-purple-1024.png" "$WPS_DST/default.png"
 ln -sfn "$WPS_DST/sequoia-dark-2880x1800.png" "$WPS_DST/default-2x.png"
 
 # ── 3. .desktop entries ───────────────────────────────────────────────────────

@@ -105,8 +105,12 @@ extern "C" void init_aqua_style() {
             if (!themePaths.contains(p) && QFileInfo::exists(p)) themePaths << p;
         }
         QIcon::setThemeSearchPaths(themePaths);
-        if (QIcon::themeName().isEmpty()) {
-            QIcon::setThemeName(qEnvironmentVariable("QT_ICON_THEME", "hicolor"));
+        // AMD-LITE PATCH: honrar QT_ICON_THEME SIEMPRE (no solo si themeName vacio),
+        // porque en algunos entornos Qt autodetecta un tema inutil y bloqueaba Papirus.
+        {
+            const QString forced = qEnvironmentVariable("QT_ICON_THEME");
+            if (!forced.isEmpty()) QIcon::setThemeName(forced);
+            else if (QIcon::themeName().isEmpty()) QIcon::setThemeName("hicolor");
         }
 
         qInfo().noquote() << "[aqua-qt] Fusion + Sequoia Dark palette applied. "

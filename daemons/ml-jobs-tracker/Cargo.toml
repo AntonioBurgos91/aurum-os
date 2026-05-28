@@ -2,7 +2,7 @@
 name = "ml-jobs-tracker"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.85"  # AMD-LITE PATCH: deps require edition2024
 description = "AurumOS: poll MLflow tracking server, expose active runs over D-Bus"
 license = "MIT"
 

@@ -26,9 +26,11 @@ scikit-learn
 torch>=2.7,<3
 torchvision
 torchaudio
-jax[cuda12]
+# AMD-LITE PATCH: jax CPU-only (was jax[cuda12])
+jax
 flax
-tensorflow[and-cuda]
+# AMD-LITE PATCH: tensorflow CPU-only (was tensorflow[and-cuda])
+tensorflow-cpu
 
 # --- LLM Inference (CPU-installable subset) ---
 llama-cpp-python

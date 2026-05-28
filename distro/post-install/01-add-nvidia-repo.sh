@@ -3,6 +3,13 @@
 # Run inside chroot during ISO build, before apt-get install -y < dl.list
 set -euo pipefail
 
+# --- Hardware guard (AMD-lite addition) -------------------------------------
+if ! command -v nvidia-smi >/dev/null 2>&1 \
+   && ! lspci 2>/dev/null | grep -qi 'nvidia'; then
+    echo "[01-nvidia] no NVIDIA hardware detected — skipping CUDA repo setup"
+    exit 0
+fi
+
 DISTRO="ubuntu2404"
 ARCH="x86_64"
 

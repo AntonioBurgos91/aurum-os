@@ -21,6 +21,17 @@ warn() { echo -e "\e[33m[perf]\e[0m $*" >&2; }
 
 [[ $EUID -eq 0 ]] || { echo "must be run as root" >&2; exit 1; }
 
+# AMD-LITE PATCH: load profile so we can be polite to laptop users.
+PROFILE_CONF="${AURUM_PROFILE_CONF:-/etc/aurum/profile.conf}"
+if [[ -r "${PROFILE_CONF}" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "${PROFILE_CONF}"
+    set +a
+fi
+AURUM_PROFILE="${AURUM_PROFILE:-lite}"
+
+
 # --- 1. Mask non-essential services -------------------------------------------
 # These add 200-800 ms each to the critical boot chain and a DL workstation
 # doesn't use them by default. Users can `systemctl unmask <x>` later.
@@ -39,12 +50,19 @@ SERVICES_TO_MASK=(
     motd-news.timer
 )
 
-log "masking non-essential services..."
-for svc in "${SERVICES_TO_MASK[@]}"; do
-    # `mask` is the strongest "won't ever start" instruction. Errors mean the
-    # unit was never installed — fine, just skip.
-    systemctl mask "${svc}" 2>/dev/null || true
-done
+# AMD-LITE PATCH: on lite profile, do NOT mask bluetooth/cups/printer.
+if [[ "${AURUM_PROFILE}" == "lite" ]]; then
+    log "lite profile: skipping bluetooth/cups/printer masking"
+    LITE_SAFE_SERVICES=( snapd.service snapd.socket snapd.seeded.service apport.service motd-news.timer )
+    for svc in "${LITE_SAFE_SERVICES[@]}"; do
+        systemctl mask "${svc}" 2>/dev/null || true
+    done
+else
+    log "masking non-essential services (profile=${AURUM_PROFILE})..."
+    for svc in "${SERVICES_TO_MASK[@]}"; do
+        systemctl mask "${svc}" 2>/dev/null || true
+    done
+fi
 
 # Disable timers that wake the system periodically.
 systemctl disable apt-daily.timer        apt-daily.service        2>/dev/null || true

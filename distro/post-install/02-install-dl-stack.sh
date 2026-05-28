@@ -17,6 +17,19 @@
 set -euo pipefail
 
 VENV_PATH="${VENV_PATH:-/opt/aurum-dl-venv}"
+# AMD-LITE PATCH: choose requirements file based on hardware profile.
+PROFILE_CONF="${AURUM_PROFILE_CONF:-/etc/aurum/profile.conf}"
+if [[ -r "${PROFILE_CONF}" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "${PROFILE_CONF}"
+    set +a
+fi
+AURUM_HAS_CUDA="${AURUM_HAS_CUDA:-0}"
+
+if [[ "${AURUM_HAS_CUDA}" == "0" && -z "${PIP_REQS:-}" ]]; then
+    PIP_REQS="/tmp/aurum/pip-requirements-base.txt"
+fi
 PIP_REQS="${PIP_REQS:-/tmp/aurum/pip-requirements.txt}"
 PYTHON_VER="${PYTHON_VER:-3.13}"
 
@@ -47,24 +60,29 @@ ensure_uv() {
 }
 
 resolve_requirements() {
+    # AMD-LITE PATCH: on CPU-only hosts prefer -base.txt (CUDA-safe).
+    local req_basename="pip-requirements.txt"
+    if [[ "${AURUM_HAS_CUDA:-0}" == "0" ]]; then
+        req_basename="pip-requirements-base.txt"
+        log "CPU-only host detected (AURUM_HAS_CUDA=0) → using ${req_basename}"
+    fi
     if [[ ! -f "${PIP_REQS}" ]]; then
-        # Search common locations the ISO builder stages.
         for candidate in \
-            /tmp/packages/pip-requirements.txt \
-            /tmp/aurum/distro/packages/pip-requirements.txt \
-            /etc/aurum/pip-requirements.txt \
-            ./distro/packages/pip-requirements.txt; do
+            "/tmp/packages/${req_basename}" \
+            "/tmp/aurum/distro/packages/${req_basename}" \
+            "/etc/aurum/${req_basename}" \
+            "./distro/packages/${req_basename}"; do
             if [[ -f "${candidate}" ]]; then PIP_REQS="${candidate}"; break; fi
         done
     fi
-    [[ -f "${PIP_REQS}" ]] || die "pip-requirements.txt not found"
+    [[ -f "${PIP_REQS}" ]] || die "${req_basename} not found"
     log "requirements file: ${PIP_REQS}"
 }
 
 create_venv() {
     if [[ ! -d "${VENV_PATH}" ]]; then
         log "creating venv at ${VENV_PATH} (python ${PYTHON_VER})..."
-        uv venv --python "${PYTHON_VER}" "${VENV_PATH}"
+        uv venv --relocatable --link-mode copy --python "${AURUM_PYTHON_BIN:-${PYTHON_VER}}" "${VENV_PATH}"  # AMD-LITE: relocatable+copy → venv autocontenido, accesible por todos los usuarios
     else
         log "venv already exists at ${VENV_PATH}; reusing"
     fi

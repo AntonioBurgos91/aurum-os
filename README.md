@@ -357,15 +357,23 @@ trailing-whitespace, large-file guard) via [`.pre-commit-config.yaml`](.pre-comm
   override being ignored, and off-screen dock positioning on multi-output hosts.
 - ✅ **CPU-only install path** — `jax` / `tensorflow-cpu` instead of the CUDA
   wheels, NVIDIA-repo step guarded behind a GPU check, relocatable shared venv.
+- ✅ **Working dock launchers** — clicking a dock icon now actually opens the
+  app. Default favorites resolve to `aurum-launch-*` wrapper scripts that probe
+  for a real app and degrade gracefully when one isn't installed. The preview
+  ships a Wayland-native terminal (foot), a Qt browser (falkon) and a fallback
+  editor (nano), so Terminal / Browser / Editor work out of the box.
 - 🆕 New default wallpaper.
 
 **Still rough / known gaps:**
 
 - Menubar GPU/VRAM/temp applets show **simulated** telemetry when no NVML
   device is present (the daemons run in simulation mode — values aren't real).
-- Dock `.desktop` entries point at apps (Ollama, JupyterLab, …) that aren't
-  installed in the bare preview, so clicking them is a no-op until the model
-  packs / tools are installed.
+- Notebook / LLM dock icons (JupyterLab, Marimo, Ollama) need their backing
+  tool installed (`pip install jupyterlab marimo`, `ollama` from ollama.com);
+  until then the launcher shows a notification instead of failing silently.
+- The browser launcher uses falkon, whose window class is `org.kde.falkon`, so
+  the dock's activate-or-launch dedup doesn't yet recognise an already-open
+  browser window (minor: a second click opens a second window).
 
 Per-wave detail in [`CHANGELOG.md`](CHANGELOG.md).
 

@@ -12,16 +12,20 @@ namespace aurum::dock {
 namespace {
 
 // Default pinned apps if the user has no ~/.config/aurum/dock.list yet.
-// Aligned with the apps shipped on the ISO (terminal, editor, browser, etc.).
+// These are the canonical AurumOS launcher ids — every one resolves to a
+// .desktop written by distro/assets/install-assets.sh, whose Exec points at an
+// aurum-launch-* wrapper (or a native aurum-* binary). The wrappers degrade
+// gracefully when the underlying tool isn't installed, so a dock click always
+// does something instead of silently failing on a missing third-party binary.
 const QStringList kDefaultFavorites = {
-    "ghostty",           // terminal
-    "dev.zed.Zed",       // editor
-    "firefox",           // browser fallback
-    "aurum-finder",      // file manager
-    "aurum-jupyterlab",  // ships in distro/applications/
-    "aurum-marimo",      // ships in distro/applications/
-    "aurum-ollama",      // ships in distro/applications/
-    "aurum-settings",
+    "aurum-terminal",    // foot/kitty/... via aurum-launch-terminal
+    "aurum-editor",      // code/zed/nano via aurum-launch-editor
+    "aurum-browser",     // falkon/firefox/... via aurum-launch-browser
+    "aurum-finder",      // native Qt6 binary
+    "aurum-jupyterlab",  // aurum-launch-jupyter
+    "aurum-marimo",      // aurum-launch-marimo
+    "aurum-ollama",      // aurum-launch-ollama
+    "aurum-settings",    // native Qt6 binary
 };
 
 QString themed_icon_url(const QString& icon_name) {

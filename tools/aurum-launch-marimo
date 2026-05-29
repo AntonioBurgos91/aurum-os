@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-marimo — start the marimo notebook server and open it.
+#
+# Idempotent on $MARIMO_PORT. Uses the shared DL venv if present.
+#
+# Port: 2718   Window class: aurum-marimo (browser tab)
+# ==============================================================================
+set -euo pipefail
+
+MARIMO_PORT="${MARIMO_PORT:-2718}"
+MARIMO_HOST="${MARIMO_HOST:-127.0.0.1}"
+MARIMO_URL="http://${MARIMO_HOST}:${MARIMO_PORT}"
+MARIMO_LOG="${MARIMO_LOG:-/tmp/aurum-marimo.log}"
+VENV="${AURUM_DL_VENV:-/opt/aurum-dl-venv}"
+
+log()  { echo -e "\e[34m[marimo]\e[0m $*"; }
+warn() { echo -e "\e[33m[marimo]\e[0m $*" >&2; }
+
+open_browser() {
+    if command -v aurum-launch-browser >/dev/null 2>&1; then
+        exec aurum-launch-browser "$1"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        exec xdg-open "$1"
+    fi
+    log "open manually: $1"
+    exit 0
+}
+
+if curl -fsS "${MARIMO_URL}" >/dev/null 2>&1; then
+    log "marimo already up on :${MARIMO_PORT}"
+    open_browser "${MARIMO_URL}"
+fi
+
+MARIMO_BIN=""
+if [[ -x "${VENV}/bin/marimo" ]]; then
+    MARIMO_BIN="${VENV}/bin/marimo"
+elif command -v marimo >/dev/null 2>&1; then
+    MARIMO_BIN="$(command -v marimo)"
+fi
+
+if [[ -z "${MARIMO_BIN}" ]]; then
+    warn "marimo not installed"
+    warn "install it with:  ${VENV}/bin/pip install marimo   (or: pip install marimo)"
+    command -v notify-send >/dev/null 2>&1 && \
+        notify-send "AurumOS" "marimo not installed (pip install marimo)" || true
+    exit 127
+fi
+
+log "starting marimo on :${MARIMO_PORT} (log: ${MARIMO_LOG})"
+# 'edit' launches the notebook editor; --headless so it doesn't try to open
+# its own browser, --no-token for the local preview.
+nohup "${MARIMO_BIN}" edit \
+    --headless \
+    --host="${MARIMO_HOST}" \
+    --port="${MARIMO_PORT}" \
+    --no-token \
+    >"${MARIMO_LOG}" 2>&1 &
+
+for _ in $(seq 1 40); do
+    curl -fsS "${MARIMO_URL}" >/dev/null 2>&1 && break
+    sleep 0.5
+done
+
+open_browser "${MARIMO_URL}"

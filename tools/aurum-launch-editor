@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-editor — open the user's code/text editor.
+#
+# Tries $AURUM_EDITOR first, then a preference list from heavyweight IDEs down
+# to a GUI text editor, and finally a terminal editor wrapped in the terminal
+# launcher so "click Editor" always does something visible.
+#
+# Window class: aurum-editor
+# ==============================================================================
+set -euo pipefail
+
+log()  { echo -e "\e[34m[editor]\e[0m $*"; }
+warn() { echo -e "\e[33m[editor]\e[0m $*" >&2; }
+
+try_editor() {
+    local bin="$1"; shift
+    command -v "$bin" >/dev/null 2>&1 || return 1
+    log "launching ${bin}"
+    exec "$bin" "$@"
+}
+
+# Explicit override.
+if [[ -n "${AURUM_EDITOR:-}" ]]; then
+    # shellcheck disable=SC2086
+    try_editor ${AURUM_EDITOR} || warn "AURUM_EDITOR='${AURUM_EDITOR}' not runnable, falling back"
+fi
+
+# GUI editors, Wayland-capable. --class / --name set the app_id where supported.
+try_editor code --ozone-platform-hint=auto --class=aurum-editor || true
+try_editor codium --ozone-platform-hint=auto --class=aurum-editor || true
+try_editor zeditor || true            # Zed
+try_editor gnome-text-editor || true
+try_editor kate -n || true
+try_editor gedit || true
+try_editor mousepad || true
+
+# Terminal-editor fallback: open $EDITOR (or nano/vim) inside our terminal.
+TERM_EDITOR="${EDITOR:-}"
+if [[ -z "${TERM_EDITOR}" ]]; then
+    for e in nano vim vi; do command -v "$e" >/dev/null 2>&1 && { TERM_EDITOR="$e"; break; }; done
+fi
+if [[ -n "${TERM_EDITOR}" ]] && command -v aurum-launch-terminal >/dev/null 2>&1; then
+    log "no GUI editor; opening ${TERM_EDITOR} in a terminal"
+    exec aurum-launch-terminal -e "${TERM_EDITOR}"
+fi
+
+warn "no editor found (install one, e.g.: apt-get install -y code  OR  nano)"
+command -v notify-send >/dev/null 2>&1 && \
+    notify-send "AurumOS" "No editor installed (try: apt install code or nano)" || true
+exit 127

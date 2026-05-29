@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-browser — open the user's web browser.
+#
+# Tries $AURUM_BROWSER first, then a preference list. Qt-based falkon is the
+# lightweight default that matches the desktop's Qt6 look; Chromium/Firefox
+# are used if present. Chromium-family browsers get the Wayland ozone hint.
+#
+# Window class: aurum-browser
+# ==============================================================================
+set -euo pipefail
+
+log()  { echo -e "\e[34m[browser]\e[0m $*"; }
+warn() { echo -e "\e[33m[browser]\e[0m $*" >&2; }
+
+try_browser() {
+    local bin="$1"; shift
+    command -v "$bin" >/dev/null 2>&1 || return 1
+    log "launching ${bin}"
+    exec "$bin" "$@"
+}
+
+# Explicit override.
+if [[ -n "${AURUM_BROWSER:-}" ]]; then
+    # shellcheck disable=SC2086
+    try_browser ${AURUM_BROWSER} || warn "AURUM_BROWSER='${AURUM_BROWSER}' not runnable, falling back"
+fi
+
+# Qt-native lightweight default.
+try_browser falkon || true
+# Firefox (Wayland auto-detected via MOZ_ENABLE_WAYLAND in modern builds).
+try_browser firefox --name=aurum-browser || true
+# Chromium family: ozone hint for native Wayland, --class sets app_id.
+try_browser chromium --ozone-platform-hint=auto --class=aurum-browser || true
+try_browser chromium-browser --ozone-platform-hint=auto --class=aurum-browser || true
+try_browser google-chrome --ozone-platform-hint=auto --class=aurum-browser || true
+try_browser brave-browser --ozone-platform-hint=auto --class=aurum-browser || true
+# GNOME Web.
+try_browser epiphany || true
+
+warn "no web browser found (install one, e.g.: apt-get install -y falkon)"
+command -v notify-send >/dev/null 2>&1 && \
+    notify-send "AurumOS" "No browser installed (try: apt install falkon)" || true
+exit 127

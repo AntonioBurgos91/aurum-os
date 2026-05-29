@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-terminal — open the user's terminal emulator.
+#
+# Tries, in order: the user's $AURUM_TERMINAL override, then a list of
+# Wayland-native-first emulators. The dock pins this as `aurum-terminal`;
+# the .desktop Exec points here so the choice of emulator is centralised.
+#
+# Window class: aurum-terminal  (so the dock's singleton dedup can match it)
+# ==============================================================================
+set -euo pipefail
+
+log()  { echo -e "\e[34m[term]\e[0m $*"; }
+warn() { echo -e "\e[33m[term]\e[0m $*" >&2; }
+
+# Preference order. foot + kitty are Wayland-native; the rest are fallbacks.
+# Each entry: "binary|app-id-flag" where app-id-flag sets the Wayland app_id
+# to aurum-terminal so Hyprland window rules + dock dedup work.
+try_terminal() {
+    local bin="$1"; shift
+    command -v "$bin" >/dev/null 2>&1 || return 1
+    log "launching ${bin}"
+    exec "$bin" "$@"
+}
+
+# Honor explicit override first.
+if [[ -n "${AURUM_TERMINAL:-}" ]]; then
+    # shellcheck disable=SC2086
+    try_terminal ${AURUM_TERMINAL} || warn "AURUM_TERMINAL='${AURUM_TERMINAL}' not runnable, falling back"
+fi
+
+# foot: --app-id sets the Wayland app_id (→ Hyprland window class).
+try_terminal foot --app-id=aurum-terminal || true
+# kitty: --class sets the app_id on Wayland.
+try_terminal kitty --class=aurum-terminal || true
+# alacritty: --class sets the app_id.
+try_terminal alacritty --class=aurum-terminal || true
+# wezterm.
+try_terminal wezterm || true
+# xterm: X11 only (works via Xwayland), -class sets the WM_CLASS.
+try_terminal xterm -class aurum-terminal || true
+
+warn "no terminal emulator found"
+warn "install one inside the image, e.g.:  apt-get install -y foot"
+# Surface the failure on the desktop if a notifier is available.
+command -v notify-send >/dev/null 2>&1 && \
+    notify-send "AurumOS" "No terminal emulator installed (try: apt install foot)" || true
+exit 127

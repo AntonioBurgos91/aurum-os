@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-ollama — ensure the Ollama server is up, then open an
+# interactive chat in a terminal with the profile's default model.
+#
+# Ollama has no web UI of its own, so "click the dock icon" =
+#   1. start `ollama serve` if nothing is listening on :11434
+#   2. open a terminal running `ollama run <model>`
+#
+# Model is taken from /etc/aurum/profile.conf (AURUM_OLLAMA_DEFAULT) so a
+# lite box gets a small model and a workstation gets a big one.
+#
+# Port: 11434   Window class: aurum-terminal (runs inside the terminal)
+# ==============================================================================
+set -euo pipefail
+
+OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1}"
+OLLAMA_PORT="${OLLAMA_PORT:-11434}"
+OLLAMA_LOG="${OLLAMA_LOG:-/tmp/aurum-ollama.log}"
+PROFILE_CONF="${PROFILE_CONF:-/etc/aurum/profile.conf}"
+
+log()  { echo -e "\e[34m[ollama]\e[0m $*"; }
+warn() { echo -e "\e[33m[ollama]\e[0m $*" >&2; }
+
+if ! command -v ollama >/dev/null 2>&1; then
+    warn "ollama not installed"
+    warn "install it with:  curl -fsSL https://ollama.com/install.sh | sh"
+    command -v notify-send >/dev/null 2>&1 && \
+        notify-send "AurumOS" "Ollama not installed (see ollama.com/install.sh)" || true
+    exit 127
+fi
+
+# Default model from the hardware profile, with a safe small fallback.
+MODEL="${AURUM_OLLAMA_MODEL:-}"
+if [[ -z "${MODEL}" && -r "${PROFILE_CONF}" ]]; then
+    # shellcheck disable=SC1090
+    MODEL="$(. "${PROFILE_CONF}" 2>/dev/null; echo "${AURUM_OLLAMA_DEFAULT:-}")"
+fi
+MODEL="${MODEL:-qwen2.5:0.5b}"
+
+# Start the server if nothing answers on the API port.
+if ! curl -fsS "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
+    log "starting ollama serve (log: ${OLLAMA_LOG})"
+    nohup ollama serve >"${OLLAMA_LOG}" 2>&1 &
+    for _ in $(seq 1 40); do
+        curl -fsS "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1 && break
+        sleep 0.5
+    done
+else
+    log "ollama already serving on :${OLLAMA_PORT}"
+fi
+
+# Open an interactive chat in a terminal. `ollama run` pulls the model on
+# first use, so the terminal staying open is intentional (shows progress).
+if command -v aurum-launch-terminal >/dev/null 2>&1; then
+    log "opening chat with ${MODEL}"
+    exec aurum-launch-terminal -e ollama run "${MODEL}"
+fi
+
+# No terminal available: pull the model headless so at least it's ready.
+warn "no terminal emulator; pulling ${MODEL} in the background instead"
+exec ollama pull "${MODEL}"

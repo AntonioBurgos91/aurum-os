@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Editor
+GenericName=Editor
+Comment=Code / text editor
+Exec=aurum-launch-editor
+Icon=text-editor
+Categories=Development;TextEditor;
+Terminal=false
+StartupNotify=true

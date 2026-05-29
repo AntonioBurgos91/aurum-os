@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Terminal
+GenericName=Terminal
+Comment=Terminal emulator
+Exec=aurum-launch-terminal
+Icon=utilities-terminal
+Categories=System;TerminalEmulator;
+Terminal=false
+StartupNotify=true

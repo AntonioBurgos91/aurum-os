@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-jupyter — start JupyterLab and open it in the browser.
+#
+# Idempotent: if a server is already listening on $JUPYTER_PORT we just open
+# the browser at it instead of starting a second one. Uses the shared DL venv
+# if present so the kernel sees torch/numpy/etc.
+#
+# Port: 8888   Window class: aurum-jupyterlab (browser tab)
+# ==============================================================================
+set -euo pipefail
+
+JUPYTER_PORT="${JUPYTER_PORT:-8888}"
+JUPYTER_HOST="${JUPYTER_HOST:-127.0.0.1}"
+JUPYTER_URL="http://${JUPYTER_HOST}:${JUPYTER_PORT}/lab"
+JUPYTER_LOG="${JUPYTER_LOG:-/tmp/aurum-jupyter.log}"
+VENV="${AURUM_DL_VENV:-/opt/aurum-dl-venv}"
+
+log()  { echo -e "\e[34m[jupyter]\e[0m $*"; }
+warn() { echo -e "\e[33m[jupyter]\e[0m $*" >&2; }
+
+open_browser() {
+    if command -v aurum-launch-browser >/dev/null 2>&1; then
+        exec aurum-launch-browser "$1"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        exec xdg-open "$1"
+    fi
+    log "open manually: $1"
+    exit 0
+}
+
+# Already running? Just open it.
+if curl -fsS "http://${JUPYTER_HOST}:${JUPYTER_PORT}/api" >/dev/null 2>&1; then
+    log "JupyterLab already up on :${JUPYTER_PORT}"
+    open_browser "${JUPYTER_URL}"
+fi
+
+# Pick the python that has jupyter: prefer the shared DL venv.
+JUPYTER_BIN=""
+if [[ -x "${VENV}/bin/jupyter" ]]; then
+    JUPYTER_BIN="${VENV}/bin/jupyter"
+elif command -v jupyter >/dev/null 2>&1; then
+    JUPYTER_BIN="$(command -v jupyter)"
+fi
+
+if [[ -z "${JUPYTER_BIN}" ]]; then
+    warn "JupyterLab not installed"
+    warn "install it with:  ${VENV}/bin/pip install jupyterlab   (or: pip install jupyterlab)"
+    command -v notify-send >/dev/null 2>&1 && \
+        notify-send "AurumOS" "JupyterLab not installed (pip install jupyterlab)" || true
+    exit 127
+fi
+
+log "starting JupyterLab on :${JUPYTER_PORT} (log: ${JUPYTER_LOG})"
+# No token for the local preview; bind to localhost only so it isn't exposed.
+nohup "${JUPYTER_BIN}" lab \
+    --no-browser \
+    --ip="${JUPYTER_HOST}" \
+    --port="${JUPYTER_PORT}" \
+    --ServerApp.token='' \
+    --ServerApp.password='' \
+    >"${JUPYTER_LOG}" 2>&1 &
+
+# Wait for the server to answer before opening the browser (max ~20s).
+for _ in $(seq 1 40); do
+    curl -fsS "http://${JUPYTER_HOST}:${JUPYTER_PORT}/api" >/dev/null 2>&1 && break
+    sleep 0.5
+done
+
+open_browser "${JUPYTER_URL}"

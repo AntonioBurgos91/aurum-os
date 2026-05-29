@@ -110,6 +110,16 @@ RUN install -d /usr/share/aurum-os/wallpapers && cp /opt/aurum-src/distro/assets
 # Honrar QT_ICON_THEME para que el dock use Papirus (ver libs/aqua-qt/style_engine.cpp).
 ENV QT_ICON_THEME=Papirus
 
+# --- Dock apps: real, lightweight default apps + launcher wrappers --------
+# Without these the dock icons were no-ops (Exec pointed at uninstalled apps).
+# foot   = Wayland-native terminal, falkon = Qt web browser (matches the look),
+# nano   = always-there editor fallback. dbus-x11/libnotify for notify-send.
+RUN apt-get update && apt-get install -y --no-install-recommends foot falkon nano libnotify-bin qtwayland5 && rm -rf /var/lib/apt/lists/*
+# Install the aurum-launch-* wrapper scripts the .desktop Exec lines point at.
+# Each wrapper probes for a real app and degrades gracefully (notify-send) when
+# the underlying tool isn't present, so a dock click always does something.
+RUN install -m 0755         /opt/aurum-src/tools/aurum-launch-terminal         /opt/aurum-src/tools/aurum-launch-editor         /opt/aurum-src/tools/aurum-launch-browser         /opt/aurum-src/tools/aurum-launch-jupyter         /opt/aurum-src/tools/aurum-launch-marimo         /opt/aurum-src/tools/aurum-launch-ollama         /usr/local/bin/
+
 # --- Aurum Hyprland config for the preview --------------------------------
 RUN install -d /etc/aurum/hypr \
     && cp /opt/aurum-src/distro/hyprland-fork/aurum.conf /etc/aurum/hypr/aurum.conf

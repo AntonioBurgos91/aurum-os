@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Browser
+GenericName=Browser
+Comment=Web browser
+Exec=aurum-launch-browser
+Icon=web-browser
+Categories=Network;WebBrowser;
+Terminal=false
+StartupNotify=true

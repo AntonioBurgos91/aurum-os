@@ -39,6 +39,11 @@ class SystemClient : public QObject {
     Q_PROPERTY(QString utilLabel READ utilLabel NOTIFY changed)
     Q_PROPERTY(QString memLabel READ memLabel NOTIFY changed)
     Q_PROPERTY(QString netThroughput READ netThroughput NOTIFY changed)
+    // Monotonic counter bumped once per successful daemon poll. The QML reads
+    // it to detect a *dead daemon* (counter stops advancing) instead of
+    // mislabelling a legitimately-constant value (idle VRAM, parked network)
+    // as "stale".
+    Q_PROPERTY(int daemonHeartbeat READ daemonHeartbeat NOTIFY changed)
 
 public:
     explicit SystemClient(QObject* parent = nullptr) : QObject(parent) {
@@ -87,6 +92,9 @@ public:
     QString netThroughput() const {
         return m_net;
     }
+    int daemonHeartbeat() const {
+        return m_daemonHeartbeat;
+    }
 
 signals:
     void changed();
@@ -103,6 +111,8 @@ private slots:
 private:
     void pollGpu() {
         if (!m_iface->isValid()) {
+            // Daemon is unreachable: leave the heartbeat frozen so the QML can
+            // tell the readout is stale, and blank the values.
             m_name = "—";
             m_sourceKind = "none";
             m_util = 0;
@@ -111,30 +121,49 @@ private:
             m_total = 0;
             return;
         }
-        if (auto r = QDBusReply<QString>(m_iface->call("gpu_name")); r.isValid())
+        // Track whether at least one call this round actually reached the
+        // daemon. A live daemon → we bump m_daemonHeartbeat at the end, which
+        // is the QML's signal that telemetry is fresh (independent of whether
+        // any individual *value* changed — idle VRAM stays constant and that
+        // is NOT staleness).
+        bool reached = false;
+        if (auto r = QDBusReply<QString>(m_iface->call("gpu_name")); r.isValid()) {
             m_name = r.value();
-        else
+            reached = true;
+        } else {
             qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        }
         // source_kind is newer than the rest of the interface; tolerate an
         // older daemon that doesn't implement it by keeping the previous value.
-        if (auto r = QDBusReply<QString>(m_iface->call("source_kind")); r.isValid())
+        if (auto r = QDBusReply<QString>(m_iface->call("source_kind")); r.isValid()) {
             m_sourceKind = r.value();
-        if (auto r = QDBusReply<uint>(m_iface->call("gpu_utilization")); r.isValid())
+            reached = true;
+        }
+        if (auto r = QDBusReply<uint>(m_iface->call("gpu_utilization")); r.isValid()) {
             m_util = static_cast<int>(r.value());
-        else
+            reached = true;
+        } else {
             qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_used")); r.isValid())
+        }
+        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_used")); r.isValid()) {
             m_used = r.value();
-        else
+            reached = true;
+        } else {
             qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_total")); r.isValid())
+        }
+        if (auto r = QDBusReply<qulonglong>(m_iface->call("vram_total")); r.isValid()) {
             m_total = r.value();
-        else
+            reached = true;
+        } else {
             qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
-        if (auto r = QDBusReply<uint>(m_iface->call("temperature")); r.isValid())
+        }
+        if (auto r = QDBusReply<uint>(m_iface->call("temperature")); r.isValid()) {
             m_temp = static_cast<int>(r.value());
-        else
+            reached = true;
+        } else {
             qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        }
+        if (reached) ++m_daemonHeartbeat;
     }
 
     void pollNet() {
@@ -186,6 +215,7 @@ private:
     QString m_name = "—";
     QString m_sourceKind = "none";
     QString m_net = "0.0 KB/s";
+    int m_daemonHeartbeat = 0;
     int m_util = 0;
     int m_temp = 0;
     qulonglong m_used = 0;

@@ -38,6 +38,34 @@ Window {
     color: "#FF1c1c1e"
     title: "aurum-menubar"
 
+    // Daemon liveness: true when the gpu-monitor daemon has stopped answering.
+    // Driven by watching gpuClient.daemonHeartbeat (a monotonic counter the C++
+    // client bumps on every successful poll). If it doesn't advance for
+    // `staleAfterMs`, the daemon is considered down and daemon-backed applets
+    // render "(stale)". A constant *value* (idle VRAM) does NOT trip this —
+    // only a frozen heartbeat does.
+    property bool daemonStale: false
+    property int  _lastHeartbeat: 0
+    readonly property int staleAfterMs: 5000
+
+    Timer {
+        id: heartbeatWatcher
+        interval: root.staleAfterMs
+        repeat: true
+        running: true
+        onTriggered: {
+            // If the heartbeat hasn't moved since the last check, the daemon
+            // is unresponsive. Otherwise it's alive — clear stale and latch
+            // the new value for the next interval.
+            if (gpuClient.daemonHeartbeat === root._lastHeartbeat) {
+                root.daemonStale = true
+            } else {
+                root.daemonStale = false
+                root._lastHeartbeat = gpuClient.daemonHeartbeat
+            }
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: "#FF1c1c1e"
@@ -85,6 +113,7 @@ Window {
 
             // --- Right section: live applets --------------------------------
             Applet {
+                dependsOnDaemon: true
                 label: gpuClient.utilLabel
                 value: gpuClient.gpuUtilization + "%"
                 tone: gpuClient.gpuUtilization >= 90 ? Theme.danger
@@ -94,6 +123,7 @@ Window {
             }
 
             Applet {
+                dependsOnDaemon: true
                 label: gpuClient.memLabel
                 value: gpuClient.vramUsedGb.toFixed(1) + "/" +
                        gpuClient.vramTotalGb.toFixed(1) + "G"
@@ -104,6 +134,7 @@ Window {
             }
 
             Applet {
+                dependsOnDaemon: true
                 label: "°C"
                 value: gpuClient.gpuTemp + ""
                 tone: gpuClient.gpuTemp >= 85 ? Theme.danger
@@ -132,35 +163,24 @@ Window {
     // hover-tooltip. Local to the menubar instead of an Aurum.Aqua singleton
     // because it's tightly coupled to the strip's rhythm.
     //
-    // Daemon-health "stale" indicator: if `value` hasn't changed in 30s we
-    // assume the backing daemon died and show the last value dimmed with a
-    // "(stale)" suffix. Restart of the timer on every value change is cheap
-    // (~1 µs per Qt timer reset) and totally avoids polling the daemon's
-    // liveness directly.
+    // Daemon-health "stale" indicator: an applet is stale only when the
+    // telemetry DAEMON has stopped responding — never because a value is
+    // legitimately constant (idle VRAM, a parked network link). Applets that
+    // read from the gpu-monitor daemon set `dependsOnDaemon: true`; the root's
+    // heartbeatWatcher flips `root.daemonStale` when gpuClient.daemonHeartbeat
+    // stops advancing. Host-local applets (clock, network read from
+    // /proc/net/dev) leave dependsOnDaemon=false and are never marked stale.
     component Applet: Item {
         id: applet
         property string label: ""
         property string value: ""
         property color  tone: Theme.textPrimary
         property string tooltip: ""
-        property string lastValue: ""
-        property bool   stale: false
+        property bool   dependsOnDaemon: false
+        readonly property bool stale: dependsOnDaemon && root.daemonStale
 
         implicitHeight: Theme.menubarHeight
         implicitWidth: row.implicitWidth + 10
-
-        Timer {
-            id: staleTimer
-            interval: 30000
-            repeat: false
-            onTriggered: applet.stale = true
-        }
-        onValueChanged: {
-            lastValue = value
-            stale = false
-            staleTimer.restart()
-        }
-        Component.onCompleted: staleTimer.start()
 
         Row {
             id: row

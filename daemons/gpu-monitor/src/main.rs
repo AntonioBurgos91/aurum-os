@@ -1,13 +1,20 @@
 // ==============================================================================
-// AurumOS GPU Telemetry Daemon (NVML → D-Bus session bus)
+// AurumOS System Telemetry Daemon  (NVIDIA NVML · AMD sysfs · CPU/RAM fallback)
 //
 // Object path:  /org/aurumos/GpuMonitor
 // Interface:    org.aurumos.GpuMonitor
 // Bus name:     org.aurumos.GpuMonitorService
 //
 // Consumers (aurum-dock, aurum-menubar) poll the methods below at ~1 Hz.
-// Falls back to a deterministic simulation when no NVIDIA hardware is present
-// so the UI is still developable on a non-NVIDIA machine.
+//
+// Telemetry source is auto-detected at startup, in priority order:
+//   1. NVML        — NVIDIA GPU (utilization, VRAM, temp, power) via libnvidia-ml
+//   2. AMD sysfs   — Radeon/amdgpu via /sys/class/drm + hwmon (real iGPU/dGPU data)
+//   3. CPU/RAM     — /proc/stat + /proc/meminfo + hwmon (k10temp/coretemp)
+//
+// Every value is REAL on every path. There is no synthetic/simulated mode:
+// the `source_kind` method tells the UI which backend is live so it can label
+// the readout honestly ("GPU" vs "iGPU" vs "CPU").
 // ==============================================================================
 
 use std::sync::Arc;
@@ -20,17 +27,19 @@ use zbus::{connection::Builder, interface};
 #[derive(Debug, Clone)]
 struct GpuState {
     name: String,
-    utilization: u32,   // %
-    vram_total: u64,    // bytes
-    vram_used: u64,     // bytes
-    temperature: u32,   // °C
-    power_draw_mw: u32, // milliwatts
+    source_kind: String, // "nvml" | "amd-sysfs" | "cpu" | "none"
+    utilization: u32,    // % (GPU busy, or CPU busy on the cpu backend)
+    vram_total: u64,     // bytes (VRAM, or RAM total on the cpu backend)
+    vram_used: u64,      // bytes (VRAM used, or RAM used on the cpu backend)
+    temperature: u32,    // °C
+    power_draw_mw: u32,  // milliwatts (0 if the backend can't measure it)
 }
 
 impl Default for GpuState {
     fn default() -> Self {
         Self {
             name: "Initializing…".into(),
+            source_kind: "none".into(),
             utilization: 0,
             vram_total: 0,
             vram_used: 0,
@@ -45,9 +54,8 @@ struct GpuMonitor {
 }
 
 // zbus 4 maps Rust `fn search` → wire `Search` (PascalCase) by default.
-// The C++ clients (aurum-dock, aurum-menubar, aurum-settings) call the
-// snake_case names that match the docs/READMEs, so we explicitly pin each
-// method's wire name here to keep the documented contract.
+// The C++ clients call the snake_case names that match the docs, so we pin
+// each method's wire name explicitly to keep the documented contract.
 #[interface(name = "org.aurumos.GpuMonitor")]
 impl GpuMonitor {
     #[zbus(name = "gpu_name")]
@@ -74,10 +82,218 @@ impl GpuMonitor {
     async fn power_draw_mw(&self) -> u32 {
         self.state.lock().await.power_draw_mw
     }
+    // NEW: lets the UI label the readout honestly (GPU vs iGPU vs CPU).
+    #[zbus(name = "source_kind")]
+    async fn source_kind(&self) -> String {
+        self.state.lock().await.source_kind.clone()
+    }
+}
+
+// ── small sysfs helpers ───────────────────────────────────────────────────
+fn read_str(path: &str) -> Option<String> {
+    std::fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+}
+fn read_u64(path: &str) -> Option<u64> {
+    read_str(path).and_then(|s| s.parse().ok())
+}
+
+// ── Backend selection ─────────────────────────────────────────────────────
+enum Backend {
+    // Nvml is ~9.7 KB; box it so the enum isn't dominated by the variant that's
+    // unused on the common (non-NVIDIA) path. Keeps clippy::large_enum_variant
+    // happy and the daemon's CI gate (`clippy -D warnings`) green.
+    Nvml(Box<Nvml>),
+    AmdSysfs(AmdPaths),
+    Cpu(CpuReader),
+}
+
+// ── AMD / amdgpu via sysfs ─────────────────────────────────────────────────
+// Reads real iGPU/dGPU telemetry from /sys/class/drm/cardN/device and the
+// matching hwmon node. No root needed — these are world-readable.
+struct AmdPaths {
+    card_dir: String,    // /sys/class/drm/cardN/device
+    hwmon_temp: Option<String>,
+    hwmon_power: Option<String>,
+    name: String,
+}
+
+fn detect_amd() -> Option<AmdPaths> {
+    // Find the first card exposing gpu_busy_percent (an amdgpu device).
+    for n in 0..8 {
+        let dir = format!("/sys/class/drm/card{n}/device");
+        if std::path::Path::new(&format!("{dir}/gpu_busy_percent")).exists() {
+            // Locate the hwmon subdir for this device (temp/power inputs).
+            let mut hwmon_temp = None;
+            let mut hwmon_power = None;
+            let hwmon_root = format!("{dir}/hwmon");
+            if let Ok(entries) = std::fs::read_dir(&hwmon_root) {
+                for e in entries.flatten() {
+                    let p = e.path();
+                    let t = format!("{}/temp1_input", p.display());
+                    if std::path::Path::new(&t).exists() {
+                        hwmon_temp = Some(t);
+                    }
+                    let pw = format!("{}/power1_average", p.display());
+                    if std::path::Path::new(&pw).exists() {
+                        hwmon_power = Some(pw);
+                    } else {
+                        let pw2 = format!("{}/power1_input", p.display());
+                        if std::path::Path::new(&pw2).exists() {
+                            hwmon_power = Some(pw2);
+                        }
+                    }
+                }
+            }
+            // Device marketing name, if the kernel exposes it.
+            let name = read_str(&format!("{dir}/product_name"))
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "AMD Radeon (amdgpu)".into());
+            return Some(AmdPaths { card_dir: dir, hwmon_temp, hwmon_power, name });
+        }
+    }
+    None
+}
+
+async fn poll_amd(p: &AmdPaths, state: &Arc<Mutex<GpuState>>) {
+    let util = read_u64(&format!("{}/gpu_busy_percent", p.card_dir)).unwrap_or(0) as u32;
+    let vram_total = read_u64(&format!("{}/mem_info_vram_total", p.card_dir)).unwrap_or(0);
+    let vram_used = read_u64(&format!("{}/mem_info_vram_used", p.card_dir)).unwrap_or(0);
+    let temp = p
+        .hwmon_temp
+        .as_ref()
+        .and_then(|f| read_u64(f))
+        .map(|millideg| (millideg / 1000) as u32)
+        .unwrap_or(0);
+    let power_mw = p
+        .hwmon_power
+        .as_ref()
+        .and_then(|f| read_u64(f))
+        .map(|microwatt| (microwatt / 1000) as u32) // µW → mW
+        .unwrap_or(0);
+
+    let mut s = state.lock().await;
+    s.name = p.name.clone();
+    s.source_kind = "amd-sysfs".into();
+    s.utilization = util;
+    s.vram_total = vram_total;
+    s.vram_used = vram_used;
+    s.temperature = temp;
+    s.power_draw_mw = power_mw;
+}
+
+// ── CPU / RAM fallback ─────────────────────────────────────────────────────
+// Real CPU busy% (delta of /proc/stat jiffies), RAM total/used from
+// /proc/meminfo, and package temperature from k10temp/coretemp hwmon.
+struct CpuReader {
+    name: String,
+    hwmon_temp: Option<String>,
+    prev_idle: u64,
+    prev_total: u64,
+}
+
+fn detect_cpu() -> CpuReader {
+    let name = std::fs::read_to_string("/proc/cpuinfo")
+        .ok()
+        .and_then(|c| {
+            c.lines()
+                .find(|l| l.starts_with("model name"))
+                .and_then(|l| l.split(':').nth(1))
+                .map(|s| s.trim().to_string())
+        })
+        .unwrap_or_else(|| "CPU".into());
+
+    // Find a package-temp hwmon (k10temp on AMD, coretemp on Intel).
+    let mut hwmon_temp = None;
+    if let Ok(entries) = std::fs::read_dir("/sys/class/hwmon") {
+        for e in entries.flatten() {
+            let dir = e.path();
+            let nm = read_str(&format!("{}/name", dir.display())).unwrap_or_default();
+            if nm == "k10temp" || nm == "coretemp" || nm == "acpitz" {
+                let t = format!("{}/temp1_input", dir.display());
+                if std::path::Path::new(&t).exists() {
+                    hwmon_temp = Some(t);
+                    if nm != "acpitz" {
+                        break; // prefer a real CPU sensor over acpitz
+                    }
+                }
+            }
+        }
+    }
+    CpuReader { name, hwmon_temp, prev_idle: 0, prev_total: 0 }
+}
+
+fn read_cpu_busy(reader: &mut CpuReader) -> u32 {
+    // /proc/stat first line: cpu user nice system idle iowait irq softirq steal ...
+    let stat = match std::fs::read_to_string("/proc/stat") {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+    let line = stat.lines().next().unwrap_or("");
+    let vals: Vec<u64> = line
+        .split_whitespace()
+        .skip(1)
+        .filter_map(|v| v.parse().ok())
+        .collect();
+    if vals.len() < 5 {
+        return 0;
+    }
+    let idle = vals[3] + vals.get(4).copied().unwrap_or(0); // idle + iowait
+    let total: u64 = vals.iter().sum();
+
+    let d_total = total.saturating_sub(reader.prev_total);
+    let d_idle = idle.saturating_sub(reader.prev_idle);
+    reader.prev_total = total;
+    reader.prev_idle = idle;
+
+    if d_total == 0 {
+        return 0;
+    }
+    let busy = 100.0 * (d_total.saturating_sub(d_idle) as f64) / (d_total as f64);
+    busy.round().clamp(0.0, 100.0) as u32
+}
+
+fn read_mem() -> (u64, u64) {
+    // Returns (total_bytes, used_bytes) using MemTotal - MemAvailable.
+    let info = match std::fs::read_to_string("/proc/meminfo") {
+        Ok(s) => s,
+        Err(_) => return (0, 0),
+    };
+    let mut total_kb = 0u64;
+    let mut avail_kb = 0u64;
+    for line in info.lines() {
+        if let Some(v) = line.strip_prefix("MemTotal:") {
+            total_kb = v.split_whitespace().next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        } else if let Some(v) = line.strip_prefix("MemAvailable:") {
+            avail_kb = v.split_whitespace().next().and_then(|x| x.parse().ok()).unwrap_or(0);
+        }
+    }
+    let total = total_kb * 1024;
+    let used = total.saturating_sub(avail_kb * 1024);
+    (total, used)
+}
+
+async fn poll_cpu(reader: &mut CpuReader, state: &Arc<Mutex<GpuState>>) {
+    let busy = read_cpu_busy(reader);
+    let (mem_total, mem_used) = read_mem();
+    let temp = reader
+        .hwmon_temp
+        .as_ref()
+        .and_then(|f| read_u64(f))
+        .map(|millideg| (millideg / 1000) as u32)
+        .unwrap_or(0);
+
+    let mut s = state.lock().await;
+    s.name = reader.name.clone();
+    s.source_kind = "cpu".into();
+    s.utilization = busy;
+    s.vram_total = mem_total;
+    s.vram_used = mem_used;
+    s.temperature = temp;
+    s.power_draw_mw = 0; // no portable per-package power on the CPU path
 }
 
 // Pull one round of metrics from a real NVML device into the shared state.
-async fn poll_real(nvml: &Nvml, state: &Arc<Mutex<GpuState>>) {
+async fn poll_nvml(nvml: &Nvml, state: &Arc<Mutex<GpuState>>) {
     let device = match nvml.device_by_index(0) {
         Ok(d) => d,
         Err(e) => {
@@ -85,7 +301,6 @@ async fn poll_real(nvml: &Nvml, state: &Arc<Mutex<GpuState>>) {
             return;
         }
     };
-
     let name = device.name().unwrap_or_else(|_| "NVIDIA GPU".into());
     let util = device.utilization_rates().map(|r| r.gpu).unwrap_or(0);
     let mem = device.memory_info().ok();
@@ -94,22 +309,12 @@ async fn poll_real(nvml: &Nvml, state: &Arc<Mutex<GpuState>>) {
 
     let mut s = state.lock().await;
     s.name = name;
+    s.source_kind = "nvml".into();
     s.utilization = util;
     s.vram_total = mem.as_ref().map(|m| m.total).unwrap_or(0);
     s.vram_used = mem.as_ref().map(|m| m.used).unwrap_or(0);
     s.temperature = temp;
     s.power_draw_mw = power;
-}
-
-// Headless simulation: a slow sinusoid so the UI shows life.
-fn step_sim(sim_angle: &mut f64, s: &mut GpuState) {
-    *sim_angle += 0.1;
-    s.name = "Simulated RTX 4090".into();
-    s.utilization = (50.0 + 30.0 * sim_angle.sin()) as u32;
-    s.vram_total = 25_769_803_776; // 24 GiB
-    s.vram_used = (4_000_000_000.0 + 2_000_000_000.0 * sim_angle.cos()) as u64;
-    s.temperature = (45.0 + 10.0 * sim_angle.sin()) as u32;
-    s.power_draw_mw = (120_000.0 + 80_000.0 * sim_angle.sin().abs()) as u32;
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
@@ -119,29 +324,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let shared = Arc::new(Mutex::new(GpuState::default()));
 
-    // Try NVML once; if it doesn't initialize we stay in sim mode forever.
-    let nvml = match Nvml::init() {
+    // Detect the best available telemetry backend, in priority order.
+    let backend = match Nvml::init() {
         Ok(n) => {
-            log::info!("NVML initialized");
-            Some(n)
+            log::info!("backend: NVML (NVIDIA GPU)");
+            Backend::Nvml(Box::new(n))
         }
         Err(e) => {
-            log::warn!("NVML unavailable ({e}); running in simulation mode");
-            None
+            log::info!("NVML unavailable ({e}); trying amdgpu sysfs");
+            match detect_amd() {
+                Some(amd) => {
+                    log::info!("backend: amdgpu sysfs ({})", amd.name);
+                    Backend::AmdSysfs(amd)
+                }
+                None => {
+                    let cpu = detect_cpu();
+                    log::info!("backend: CPU/RAM fallback ({})", cpu.name);
+                    Backend::Cpu(cpu)
+                }
+            }
         }
     };
 
-    // Polling task
+    // Polling task — every value published is real for the active backend.
     let poll_state = shared.clone();
     tokio::spawn(async move {
-        let mut sim_angle = 0.0_f64;
+        let mut backend = backend;
         loop {
-            match &nvml {
-                Some(nvml) => poll_real(nvml, &poll_state).await,
-                None => {
-                    let mut s = poll_state.lock().await;
-                    step_sim(&mut sim_angle, &mut s);
-                }
+            match &mut backend {
+                Backend::Nvml(nvml) => poll_nvml(nvml, &poll_state).await,
+                Backend::AmdSysfs(amd) => poll_amd(amd, &poll_state).await,
+                Backend::Cpu(cpu) => poll_cpu(cpu, &poll_state).await,
             }
             tokio::time::sleep(Duration::from_millis(1000)).await;
         }
@@ -156,7 +369,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("D-Bus interface ready at org.aurumos.GpuMonitorService /org/aurumos/GpuMonitor");
 
-    // Block on SIGTERM/SIGINT instead of an infinite sleep so systemd can shut us down cleanly.
     tokio::signal::ctrl_c().await?;
     log::info!("shutdown requested");
     Ok(())

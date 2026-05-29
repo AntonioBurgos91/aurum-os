@@ -85,22 +85,22 @@ Window {
 
             // --- Right section: live applets --------------------------------
             Applet {
-                label: "GPU"
+                label: gpuClient.utilLabel
                 value: gpuClient.gpuUtilization + "%"
                 tone: gpuClient.gpuUtilization >= 90 ? Theme.danger
                     : gpuClient.gpuUtilization >= 70 ? Theme.warning
                     :                                   Theme.success
-                tooltip: gpuClient.gpuName
+                tooltip: gpuClient.gpuName + " — live " + gpuClient.utilLabel + " utilization"
             }
 
             Applet {
-                label: "VRAM"
+                label: gpuClient.memLabel
                 value: gpuClient.vramUsedGb.toFixed(1) + "/" +
-                       gpuClient.vramTotalGb.toFixed(0) + "G"
+                       gpuClient.vramTotalGb.toFixed(1) + "G"
                 tone: (gpuClient.vramTotalGb > 0 &&
                        gpuClient.vramUsedGb / gpuClient.vramTotalGb >= 0.9)
                       ? Theme.danger : Theme.textPrimary
-                tooltip: "VRAM in use across the primary GPU"
+                tooltip: gpuClient.memLabel + " in use (" + gpuClient.gpuName + ")"
             }
 
             Applet {
@@ -109,7 +109,7 @@ Window {
                 tone: gpuClient.gpuTemp >= 85 ? Theme.danger
                     : gpuClient.gpuTemp >= 75 ? Theme.warning
                     :                            Theme.textPrimary
-                tooltip: "GPU core temperature"
+                tooltip: gpuClient.utilLabel + " package temperature"
             }
 
             Applet {

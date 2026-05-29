@@ -69,30 +69,39 @@ fn utilization_percentage_is_clamped_to_u32_domain() {
 }
 
 #[test]
-fn sim_vram_total_matches_24gib() {
-    // The simulation in step_sim() hard-codes a 24 GiB VRAM total so
-    // the UI looks like an RTX 4090 in headless dev. Lock the constant
-    // in: 24 * 1024^3.
-    let expected: u64 = 24 * 1024 * 1024 * 1024;
-    assert_eq!(expected, 25_769_803_776);
+fn meminfo_used_is_total_minus_available() {
+    // Mirrors read_mem() in src/main.rs: used = MemTotal - MemAvailable,
+    // both converted from kB to bytes. Reference sample from a real host.
+    let total_kb: u64 = 32_182_036;
+    let avail_kb: u64 = 24_692_352;
+    let total = total_kb * 1024;
+    let used = total.saturating_sub(avail_kb * 1024);
+    assert_eq!(total, 32_954_404_864);
+    assert_eq!(used, 7_669_436_416);
+    assert!(used <= total);
 }
 
 #[test]
-fn sim_temperature_band_is_sane() {
-    // step_sim's temperature formula is `45 + 10*sin(angle)`. That
-    // bands the value in [35, 55]. We sweep angles and assert.
-    use std::f64::consts::TAU;
-    let mut angle = 0.0_f64;
-    let mut min = u32::MAX;
-    let mut max = 0u32;
-    for _ in 0..200 {
-        angle += TAU / 200.0;
-        let t = (45.0 + 10.0 * angle.sin()) as u32;
-        min = min.min(t);
-        max = max.max(t);
-    }
-    assert!(min >= 35, "sim temperature underflowed band: min={min}");
-    assert!(max <= 55, "sim temperature overflowed band: max={max}");
+fn cpu_busy_percentage_from_jiffies_delta() {
+    // Mirrors read_cpu_busy(): busy% = 100*(dTotal - dIdle)/dTotal.
+    let d_total: u64 = 1000;
+    let d_idle: u64 = 250;
+    let busy = (100.0 * (d_total.saturating_sub(d_idle) as f64) / d_total as f64)
+        .round()
+        .clamp(0.0, 100.0) as u32;
+    assert_eq!(busy, 75);
+    let d_total0: u64 = 0;
+    let busy0 = if d_total0 == 0 { 0 } else { 1 };
+    assert_eq!(busy0, 0);
+}
+
+#[test]
+fn hwmon_millidegrees_convert_to_celsius() {
+    // hwmon reports milli-degrees C; daemon divides by 1000.
+    assert_eq!(71_250u64 / 1000, 71);
+    assert_eq!(57_000u64 / 1000, 57);
+    // Power: hwmon reports micro-watts; daemon converts uW -> mW.
+    assert_eq!(25_000_000u64 / 1000, 25_000);
 }
 
 #[test]

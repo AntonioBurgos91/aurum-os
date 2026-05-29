@@ -35,6 +35,9 @@ class SystemClient : public QObject {
     Q_PROPERTY(double vramTotalGb READ vramTotalGb NOTIFY changed)
     Q_PROPERTY(int gpuTemp READ gpuTemp NOTIFY changed)
     Q_PROPERTY(QString gpuName READ gpuName NOTIFY changed)
+    Q_PROPERTY(QString sourceKind READ sourceKind NOTIFY changed)
+    Q_PROPERTY(QString utilLabel READ utilLabel NOTIFY changed)
+    Q_PROPERTY(QString memLabel READ memLabel NOTIFY changed)
     Q_PROPERTY(QString netThroughput READ netThroughput NOTIFY changed)
 
 public:
@@ -69,6 +72,18 @@ public:
     QString gpuName() const {
         return m_name;
     }
+    QString sourceKind() const {
+        return m_sourceKind;
+    }
+    // On the CPU fallback backend the readout is CPU load + system RAM, so the
+    // applet labels switch from GPU/VRAM to CPU/RAM. NVIDIA (nvml) and AMD
+    // (amd-sysfs) are real GPUs, so they keep GPU/VRAM.
+    QString utilLabel() const {
+        return m_sourceKind == "cpu" ? "CPU" : "GPU";
+    }
+    QString memLabel() const {
+        return m_sourceKind == "cpu" ? "RAM" : "VRAM";
+    }
     QString netThroughput() const {
         return m_net;
     }
@@ -89,6 +104,7 @@ private:
     void pollGpu() {
         if (!m_iface->isValid()) {
             m_name = "—";
+            m_sourceKind = "none";
             m_util = 0;
             m_temp = 0;
             m_used = 0;
@@ -99,6 +115,10 @@ private:
             m_name = r.value();
         else
             qWarning() << "[gpu-client] D-Bus call failed:" << r.error().message();
+        // source_kind is newer than the rest of the interface; tolerate an
+        // older daemon that doesn't implement it by keeping the previous value.
+        if (auto r = QDBusReply<QString>(m_iface->call("source_kind")); r.isValid())
+            m_sourceKind = r.value();
         if (auto r = QDBusReply<uint>(m_iface->call("gpu_utilization")); r.isValid())
             m_util = static_cast<int>(r.value());
         else
@@ -164,6 +184,7 @@ private:
     QString m_time;
     QString m_focusedApp;
     QString m_name = "—";
+    QString m_sourceKind = "none";
     QString m_net = "0.0 KB/s";
     int m_util = 0;
     int m_temp = 0;

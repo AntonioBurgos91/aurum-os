@@ -20,7 +20,9 @@ Production-grade · macOS-Sequoia-class UX · adapts to your hardware.
 [![Rust](https://img.shields.io/badge/Rust-stable-orange?style=flat-square&logo=rust)](daemons/)
 [![Qt 6](https://img.shields.io/badge/Qt-6-41cd52?style=flat-square&logo=qt)](desktop/)
 
-![AurumOS desktop](distro/demo/screenshots/aurum-desktop-ULTIMATE.png)
+![AurumOS desktop — Hyprland + Qt6, working dock launchers, live system telemetry](distro/demo/screenshots/aurum-desktop-terminal.png)
+
+<sub>Live preview running on an AMD Ryzen 7 7730U (Radeon iGPU, no NVIDIA): a real terminal launched from the dock, with the menubar showing **real** GPU/VRAM/temp read from amdgpu sysfs.</sub>
 
 </div>
 

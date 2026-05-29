@@ -145,7 +145,7 @@ consistency. Built from scratch — no GNOME / KDE / XFCE inheritance.
 
 Plus three **Rust daemons** on the session bus:
 
-- **`aurum-gpu-monitor`** — NVML → D-Bus telemetry (GPU util, VRAM, temp)
+- **`aurum-gpu-monitor`** — real telemetry → D-Bus (NVML on NVIDIA, amdgpu sysfs on AMD/Intel, CPU/RAM fallback otherwise)
 - **`aurum-spotlight-indexer`** — tantivy + inotify file index
 - **`aurum-ml-jobs-tracker`** — MLflow REST → D-Bus event stream
 
@@ -366,8 +366,10 @@ trailing-whitespace, large-file guard) via [`.pre-commit-config.yaml`](.pre-comm
 
 **Still rough / known gaps:**
 
-- Menubar GPU/VRAM/temp applets show **simulated** telemetry when no NVML
-  device is present (the daemons run in simulation mode — values aren't real).
+- ✅ *(resolved)* Menubar GPU/VRAM/temp applets now show **real** telemetry on
+  every host — NVIDIA via NVML, AMD/Intel via amdgpu sysfs, or a CPU/RAM
+  fallback (`/proc` + hwmon). The old simulated "RTX 4090 / 24 GiB" readout is
+  gone; the bar labels itself GPU/VRAM or CPU/RAM depending on the live source.
 - Notebook / LLM dock icons (JupyterLab, Marimo, Ollama) need their backing
   tool installed (`pip install jupyterlab marimo`, `ollama` from ollama.com);
   until then the launcher shows a notification instead of failing silently.

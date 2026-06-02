@@ -44,8 +44,8 @@ Window {
     // --- Magnification parameters ---------------------------------------------
     // sigma controls falloff width; bigger sigma = more icons grow at once.
     // peak is the scale factor of the icon directly under the cursor.
-    readonly property real magnificationPeak:  1.55
-    readonly property real magnificationSigma: 70.0
+    readonly property real magnificationPeak:  1.8
+    readonly property real magnificationSigma: 90.0
 
     GlassPanel {
         id: dockShelf
@@ -72,14 +72,25 @@ Window {
         //
         // HoverHandler is the Qt6-native fix: it tracks hover state without
         // ever consuming pointer button events, so the inner per-icon
-        // MouseAreas receive clicks normally. Costs us tracking inside icon
-        // gaps (6 px spacing) — but the Gaussian magnification looks fine
-        // because cursorX still updates each time the cursor crosses any icon.
+        // MouseAreas receive clicks normally.
         HoverHandler {
             id: hoverTracker
             target: parent
-            onPointChanged: dockShelf.cursorX = hoverTracker.point.position.x - iconsRow.x
-            onHoveredChanged: if (!hovered) dockShelf.cursorX = -1
+        }
+
+        // Drive cursorX with a DECLARATIVE binding on the handler's point,
+        // not an onPointChanged signal. On Qt6/Wayland the signal handler did
+        // not fire on every pointer-move delivered through wlroots, so the
+        // magnification looked frozen even though hover highlighting worked.
+        // A binding re-evaluates whenever point.position changes, which is the
+        // reactive path Qt actually keeps up to date. When not hovering we
+        // park cursorX off-dock (-1) so every icon eases back to scale 1.
+        Binding {
+            target: dockShelf
+            property: "cursorX"
+            value: hoverTracker.hovered
+                   ? hoverTracker.point.position.x - iconsRow.x
+                   : -1
         }
 
         Row {

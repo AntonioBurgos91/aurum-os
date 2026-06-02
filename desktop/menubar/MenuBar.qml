@@ -111,6 +111,23 @@ Window {
             // Greedy spacer pushes the applets to the right edge.
             Item { Layout.fillWidth: true }
 
+            // Active ML training run tracker (pulses when active, slides out when idle)
+            Applet {
+                id: mlApplet
+                visible: systemClient.hasActiveJob
+                label: "RUNNING"
+                value: systemClient.activeJobName
+                tone: Theme.accent
+                tooltip: systemClient.activeJobDetails
+
+                SequentialAnimation on opacity {
+                    loops: Animation.Infinite
+                    running: mlApplet.visible
+                    NumberAnimation { from: 1.0; to: 0.5; duration: 1200; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 0.5; to: 1.0; duration: 1200; easing.type: Easing.InOutQuad }
+                }
+            }
+
             // --- Right section: live applets --------------------------------
             Applet {
                 dependsOnDaemon: true

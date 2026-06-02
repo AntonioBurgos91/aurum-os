@@ -20,6 +20,10 @@ QtObject {
     readonly property int   cornerRadiusSm : 8
     readonly property int   strokeWidth    : 1
 
+    // Animation timings
+    readonly property int   durationNormal: 250
+    readonly property int   durationFast:   150
+
     // Strip / shelf geometry constants shared by dock + menubar.
     readonly property int   menubarHeight  : 28
     readonly property int   dockHeight     : 80

@@ -136,4 +136,11 @@ void DockModel::launch(int row) {
     aurum::core::launch_desktop_entry(m_entries[row]);
 }
 
+void DockModel::launchByName(const QString& appId) {
+    auto entry = aurum::core::lookup_desktop_entry(appId);
+    if (entry.isValid()) {
+        aurum::core::launch_desktop_entry(entry);
+    }
+}
+
 }  // namespace aurum::dock

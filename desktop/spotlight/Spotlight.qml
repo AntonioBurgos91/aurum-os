@@ -164,11 +164,38 @@ Window {
                                 anchors.rightMargin: 10
                                 spacing: 10
 
-                                Rectangle {           // icon placeholder
-                                    width: 22; height: 22; radius: 5
-                                    color: Theme.surfaceRaised
-                                    border.color: Theme.border
+                                Image {
+                                    width: 22; height: 22
                                     anchors.verticalCenter: parent.verticalCenter
+                                    fillMode: Image.PreserveAspectFit
+                                    source: {
+                                        if (modelData.action) {
+                                            if (modelData.action.type === "desktop_entry") {
+                                                return IconProvider.forApp(modelData.action.id)
+                                            } else if (modelData.action.type === "open_path") {
+                                                let kind = modelData.action.kind || ""
+                                                if (kind === "notebook") return IconProvider.forExtension("ipynb")
+                                                if (kind === "model") return IconProvider.forExtension("safetensors")
+                                                if (kind === "dataset") return IconProvider.forExtension("parquet")
+                                                let path = modelData.action.path || ""
+                                                let dotIdx = path.lastIndexOf(".")
+                                                if (dotIdx !== -1) {
+                                                    let ext = path.substring(dotIdx + 1)
+                                                    return IconProvider.forExtension(ext)
+                                                }
+                                                return IconProvider.fallback
+                                            } else if (modelData.action.type === "open_url") {
+                                                let url = modelData.action.url || ""
+                                                if (url.indexOf("huggingface.co") !== -1) {
+                                                    return IconProvider.forFolder("models")
+                                                } else if (url.indexOf("arxiv.org") !== -1) {
+                                                    return IconProvider.forExtension("pdf")
+                                                }
+                                                return IconProvider.fallback
+                                            }
+                                        }
+                                        return IconProvider.fallback
+                                    }
                                 }
                                 Column {
                                     anchors.verticalCenter: parent.verticalCenter

@@ -18,8 +18,10 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
+#include <QtDBus/QDBusArgument>
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QDBusInterface>
+#include <QtDBus/QDBusMetaType>
 #include <QtDBus/QDBusReply>
 
 #include "core_services.h"
@@ -44,6 +46,10 @@ class SystemClient : public QObject {
     // mislabelling a legitimately-constant value (idle VRAM, parked network)
     // as "stale".
     Q_PROPERTY(int daemonHeartbeat READ daemonHeartbeat NOTIFY changed)
+    Q_PROPERTY(bool hasActiveJob READ hasActiveJob NOTIFY changed)
+    Q_PROPERTY(QString activeJobName READ activeJobName NOTIFY changed)
+    Q_PROPERTY(QString activeJobStatus READ activeJobStatus NOTIFY changed)
+    Q_PROPERTY(QString activeJobDetails READ activeJobDetails NOTIFY changed)
 
 public:
     explicit SystemClient(QObject* parent = nullptr) : QObject(parent) {
@@ -95,6 +101,18 @@ public:
     int daemonHeartbeat() const {
         return m_daemonHeartbeat;
     }
+    bool hasActiveJob() const {
+        return m_hasActiveJob;
+    }
+    QString activeJobName() const {
+        return m_activeJobName;
+    }
+    QString activeJobStatus() const {
+        return m_activeJobStatus;
+    }
+    QString activeJobDetails() const {
+        return m_activeJobDetails;
+    }
 
 signals:
     void changed();
@@ -105,6 +123,7 @@ private slots:
         pollGpu();
         pollNet();
         pollFocusedApp();
+        pollJobs();
         emit changed();
     }
 
@@ -209,7 +228,79 @@ private:
         return total;
     }
 
+    void pollJobs() {
+        if (!m_jobsIface) {
+            m_jobsIface = new QDBusInterface(
+                "org.aurumos.MlJobsTrackerService", "/org/aurumos/MlJobsTracker",
+                "org.aurumos.MlJobsTracker", QDBusConnection::sessionBus(), this);
+        }
+        if (!m_jobsIface->isValid()) {
+            m_hasActiveJob = false;
+            m_activeJobName.clear();
+            m_activeJobStatus.clear();
+            m_activeJobDetails.clear();
+            return;
+        }
+
+        QDBusMessage reply = m_jobsIface->call("runs");
+        if (reply.type() == QDBusMessage::ErrorMessage) {
+            m_hasActiveJob = false;
+            return;
+        }
+
+        const auto args = reply.arguments();
+        if (args.isEmpty()) {
+            m_hasActiveJob = false;
+            return;
+        }
+
+        const auto v = args.first();
+        const auto arg = v.value<QDBusArgument>();
+        if (arg.currentType() != QDBusArgument::ArrayType) {
+            m_hasActiveJob = false;
+            return;
+        }
+
+        bool foundActive = false;
+        QString activeName;
+        QString activeStatus;
+        QString activeDetails;
+
+        arg.beginArray();
+        while (!arg.atEnd()) {
+            arg.beginStructure();
+            QString runId, experimentId, name, status, tsIso;
+            qint64 durationS = 0;
+            arg >> runId >> experimentId >> name >> status >> tsIso >> durationS;
+            arg.endStructure();
+
+            if (status == "RUNNING" && !foundActive) {
+                foundActive = true;
+                activeName = name.isEmpty() ? "Training Run" : name;
+                activeStatus = status;
+                activeDetails = QString("Run ID: %1\nStarted: %2\nDuration: %3s")
+                                    .arg(runId)
+                                    .arg(tsIso)
+                                    .arg(durationS);
+            }
+        }
+        arg.endArray();
+
+        if (foundActive != m_hasActiveJob || activeName != m_activeJobName ||
+            activeStatus != m_activeJobStatus || activeDetails != m_activeJobDetails) {
+            m_hasActiveJob = foundActive;
+            m_activeJobName = activeName;
+            m_activeJobStatus = activeStatus;
+            m_activeJobDetails = activeDetails;
+        }
+    }
+
     QDBusInterface* m_iface = nullptr;
+    QDBusInterface* m_jobsIface = nullptr;
+    bool m_hasActiveJob = false;
+    QString m_activeJobName;
+    QString m_activeJobStatus;
+    QString m_activeJobDetails;
     QString m_time;
     QString m_focusedApp;
     QString m_name = "—";

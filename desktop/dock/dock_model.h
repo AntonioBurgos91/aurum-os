@@ -33,6 +33,7 @@ public:
 
     Q_INVOKABLE void launch(int row);
     Q_INVOKABLE void reload();
+    Q_INVOKABLE void launchByName(const QString& appId);
 
 private:
     // Loads the user's favorites file (~/.config/aurum/dock.toml-style list)

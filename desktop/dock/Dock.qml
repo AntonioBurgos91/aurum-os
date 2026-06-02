@@ -7,6 +7,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
+import QtQuick.Layouts
 import Aurum.Aqua 1.0
 
 Window {
@@ -113,7 +114,7 @@ Window {
 
                     scale: targetScale
                     Behavior on scale {
-                        NumberAnimation { duration: 80; easing.type: Easing.OutCubic }
+                        NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic }
                     }
                     transformOrigin: Item.Bottom
 
@@ -168,6 +169,50 @@ Window {
                     }
                 }
             }
+
+            // ML Tools Group
+            Item {
+                id: mlToolsCell
+                width:  Theme.dockIconSize
+                height: Theme.dockIconSize
+                anchors.verticalCenter: parent.verticalCenter
+
+                readonly property real centerX: x + width / 2
+                readonly property real distance:
+                    dockShelf.cursorX < 0 ? 1e6 : Math.abs(centerX - dockShelf.cursorX)
+                readonly property real targetScale:
+                    1 + (root.magnificationPeak - 1)
+                        * Math.exp(- (distance * distance)
+                                   / (root.magnificationSigma * root.magnificationSigma))
+
+                scale: targetScale
+                Behavior on scale {
+                    NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic }
+                }
+                transformOrigin: Item.Bottom
+
+                Image {
+                    id: mlToolsIconImg
+                    anchors.fill: parent
+                    source: IconProvider.forFolder("models")
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                }
+
+                ToolTip.visible: mlToolsClickArea.containsMouse
+                ToolTip.text:    "ML Tools"
+                ToolTip.delay:   400
+
+                MouseArea {
+                    id: mlToolsClickArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        drawerWindow.toggle()
+                    }
+                }
+            }
         }
 
         // --- Divider + GPU badge ---------------------------------------------
@@ -204,6 +249,148 @@ Window {
                 id: gpuMouse
                 anchors.fill: parent
                 hoverEnabled: true
+            }
+        }
+    }
+
+    // --- Inline component for drawer icons ---
+    component DrawerIcon: ColumnLayout {
+        id: di
+        property string iconName: ""
+        property string label: ""
+        signal triggered()
+
+        spacing: 4
+        Layout.preferredWidth: 48
+        Layout.alignment: Qt.AlignVCenter
+
+        Rectangle {
+            id: iconFrame
+            Layout.preferredWidth: 38
+            Layout.preferredHeight: 38
+            Layout.alignment: Qt.AlignHCenter
+            radius: 8
+            color: iconMouse.containsMouse ? Theme.surfaceRaised : "transparent"
+            border.color: iconMouse.containsMouse ? Theme.border : "transparent"
+
+            Image {
+                anchors.centerIn: parent
+                width: 32; height: 32
+                source: IconProvider.forApp(di.iconName)
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+            }
+
+            MouseArea {
+                id: iconMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: di.triggered()
+            }
+        }
+
+        Text {
+            text: di.label
+            color: Theme.textPrimary
+            font.pixelSize: 10
+            Layout.alignment: Qt.AlignHCenter
+            elide: Text.ElideRight
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+        }
+    }
+
+    // --- ML Tools Drawer Window ---
+    Window {
+        id: drawerWindow
+        visible: false
+        width: 200
+        height: 90
+        flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+        color: "#FF1c1c1e" // solid sequoia dark
+
+        property real slideY: height
+
+        onVisibleChanged: {
+            if (visible) {
+                // Position above the ML Tools cell
+                let globalPos = mlToolsCell.mapToItem(null, 0, 0)
+                drawerWindow.x = root.x + globalPos.x + (mlToolsCell.width * mlToolsCell.scale - drawerWindow.width) / 2
+                drawerWindow.y = root.y - drawerWindow.height - 8
+                slideAnim.start()
+            }
+        }
+
+        function toggle() {
+            if (visible) {
+                visible = false
+            } else {
+                visible = true
+            }
+        }
+
+        NumberAnimation {
+            id: slideAnim
+            target: drawerWindow
+            property: "slideY"
+            from: drawerWindow.height
+            to: 0
+            duration: Theme.durationFast
+            easing.type: Easing.OutCubic
+        }
+
+        GlassPanel {
+            id: drawerPanel
+            anchors.fill: parent
+            radius: Theme.cornerRadius
+            y: drawerWindow.slideY
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 6
+                spacing: 4
+
+                Text {
+                    text: "ML Tools"
+                    color: Theme.textSecondary
+                    font.bold: true
+                    font.pixelSize: Theme.fontSizeSmall
+                    Layout.alignment: Qt.AlignHCenter
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Layout.alignment: Qt.AlignHCenter
+
+                    DrawerIcon {
+                        iconName: "aurum-model-manager"
+                        label: "Models"
+                        onTriggered: {
+                            drawerWindow.visible = false
+                            dockModel.launchByName("aurum-model-manager")
+                        }
+                    }
+
+                    DrawerIcon {
+                        iconName: "aurum-mlflow"
+                        label: "MLflow"
+                        onTriggered: {
+                            drawerWindow.visible = false
+                            dockModel.launchByName("aurum-mlflow")
+                        }
+                    }
+
+                    DrawerIcon {
+                        iconName: "aurum-tensorboard"
+                        label: "TensorBoard"
+                        onTriggered: {
+                            drawerWindow.visible = false
+                            dockModel.launchByName("aurum-tensorboard")
+                        }
+                    }
+                }
             }
         }
     }

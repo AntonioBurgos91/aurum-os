@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-mlflow — open the MLflow tracking UI (start a local server if
+# none is reachable).
+#
+# Idempotent: if something already answers on $MLFLOW_URL we just open the
+# browser at it. The default URI (http://localhost:5000) matches the default
+# in daemons/ml-jobs-tracker (config.rs::default_mlflow_uri), so the menubar's
+# training applet and this launcher point at the same server.
+#
+# Window class: aurum-mlflow
+# ==============================================================================
+set -euo pipefail
+
+MLFLOW_HOST="${MLFLOW_HOST:-127.0.0.1}"
+MLFLOW_PORT="${MLFLOW_PORT:-5000}"
+MLFLOW_URL="${MLFLOW_URL:-http://${MLFLOW_HOST}:${MLFLOW_PORT}}"
+MLFLOW_LOG="${MLFLOW_LOG:-/tmp/aurum-mlflow.log}"
+VENV="${AURUM_DL_VENV:-/opt/aurum-dl-venv}"
+
+log()  { echo -e "\e[34m[mlflow]\e[0m $*"; }
+warn() { echo -e "\e[33m[mlflow]\e[0m $*" >&2; }
+
+open_browser() {
+    if command -v aurum-launch-browser >/dev/null 2>&1; then
+        exec aurum-launch-browser "$1"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        exec xdg-open "$1"
+    fi
+    log "open manually: $1"
+    exit 0
+}
+
+# Already serving? Just open it.
+if curl -fsS -o /dev/null --max-time 2 "${MLFLOW_URL}" 2>/dev/null; then
+    log "MLflow already up on :${MLFLOW_PORT}"
+    open_browser "${MLFLOW_URL}"
+fi
+
+# Find an mlflow binary: prefer the shared DL venv.
+MLFLOW_BIN=""
+if [[ -x "${VENV}/bin/mlflow" ]]; then
+    MLFLOW_BIN="${VENV}/bin/mlflow"
+elif command -v mlflow >/dev/null 2>&1; then
+    MLFLOW_BIN="$(command -v mlflow)"
+fi
+
+if [[ -z "${MLFLOW_BIN}" ]]; then
+    warn "mlflow not installed"
+    warn "install it with:  ${VENV}/bin/pip install mlflow   (or: pip install mlflow)"
+    command -v notify-send >/dev/null 2>&1 && \
+        notify-send "AurumOS" "MLflow not installed (pip install mlflow)" || true
+    exit 127
+fi
+
+log "starting MLflow server on :${MLFLOW_PORT} (log: ${MLFLOW_LOG})"
+# Local preview server: bind to localhost only, store under the user's data dir.
+MLFLOW_STORE="${MLFLOW_STORE:-${HOME}/.aurum/mlflow}"
+mkdir -p "${MLFLOW_STORE}"
+nohup "${MLFLOW_BIN}" server \
+    --host "${MLFLOW_HOST}" \
+    --port "${MLFLOW_PORT}" \
+    --backend-store-uri "sqlite:///${MLFLOW_STORE}/mlflow.db" \
+    --default-artifact-root "${MLFLOW_STORE}/artifacts" \
+    >"${MLFLOW_LOG}" 2>&1 &
+
+# Wait for the server to answer before opening the browser (max ~20s).
+for _ in $(seq 1 40); do
+    curl -fsS -o /dev/null --max-time 2 "${MLFLOW_URL}" 2>/dev/null && break
+    sleep 0.5
+done
+
+open_browser "${MLFLOW_URL}"

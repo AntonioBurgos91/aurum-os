@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Model Manager
+GenericName=Local model inventory
+Comment=List local Ollama models and the Hugging Face cache
+TryExec=ollama
+Exec=aurum-launch-model-manager
+Icon=applications-science
+Categories=System;Science;
+Terminal=false
+StartupNotify=false
+Keywords=models;ollama;huggingface;llm;weights;

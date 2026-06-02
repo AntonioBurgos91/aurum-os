@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-model-manager — show the local model inventory.
+#
+# There is no standalone "Model Manager" GUI yet, so this opens a terminal
+# view that lists what's actually on disk: Ollama models (via `ollama list`)
+# and the Hugging Face hub cache (~/.cache/huggingface/hub). It degrades
+# gracefully when neither is present instead of failing silently — that way
+# the dock entry always does something real.
+#
+# Window class: aurum-terminal (runs inside the terminal launcher)
+# ==============================================================================
+set -euo pipefail
+
+HF_CACHE="${HF_HOME:-${HOME}/.cache/huggingface}/hub"
+
+build_report() {
+    echo ""
+    echo "  AurumOS — Local Model Inventory"
+    echo "  ======================================================"
+    echo ""
+
+    # --- Ollama models ---
+    echo "  ▸ Ollama models"
+    if command -v ollama >/dev/null 2>&1; then
+        if curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:11434/api/tags" 2>/dev/null; then
+            ollama list 2>/dev/null | sed 's/^/    /' || echo "    (none)"
+        else
+            echo "    Ollama server not running — start it from the dock or: ollama serve"
+        fi
+    else
+        echo "    ollama not installed (see https://ollama.com/install.sh)"
+    fi
+    echo ""
+
+    # --- Hugging Face hub cache ---
+    echo "  ▸ Hugging Face cache  (${HF_CACHE})"
+    if [[ -d "${HF_CACHE}" ]]; then
+        local found=0
+        # Each cached repo is a dir like models--org--name; show name + size.
+        while IFS= read -r d; do
+            [[ -z "${d}" ]] && continue
+            found=1
+            local name size
+            name="$(basename "${d}" | sed 's/^models--//; s/--/\//g')"
+            size="$(du -sh "${d}" 2>/dev/null | cut -f1)"
+            printf "    %-48s %s\n" "${name}" "${size}"
+        done < <(find "${HF_CACHE}" -maxdepth 1 -type d -name 'models--*' 2>/dev/null | sort)
+        [[ "${found}" -eq 0 ]] && echo "    (cache empty)"
+    else
+        echo "    no Hugging Face cache yet"
+    fi
+    echo ""
+    echo "  ======================================================"
+    echo "  Tip: 'ollama pull <model>' or 'huggingface-cli download <repo>'"
+    echo ""
+}
+
+# Prefer to render inside our themed terminal; fall back to stdout.
+if command -v aurum-launch-terminal >/dev/null 2>&1 && [[ -z "${AURUM_MM_INLINE:-}" ]]; then
+    # Re-exec this script inside the terminal, then drop to an interactive shell
+    # so the user can act on what they see.
+    exec aurum-launch-terminal -e bash -c \
+        "AURUM_MM_INLINE=1 '$0'; exec bash"
+fi
+
+build_report

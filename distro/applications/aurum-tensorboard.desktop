@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TensorBoard
+GenericName=Training visualization
+Comment=TensorBoard dashboards for scalars, graphs and embeddings
+TryExec=tensorboard
+Exec=aurum-launch-tensorboard
+Icon=applications-science
+Categories=Development;Science;DataVisualization;
+Terminal=false
+StartupNotify=false
+Keywords=tensorboard;training;tensorflow;pytorch;metrics;

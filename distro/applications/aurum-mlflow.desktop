@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MLflow
+GenericName=Experiment tracking UI
+Comment=MLflow tracking server + web UI for experiments and runs
+TryExec=mlflow
+Exec=aurum-launch-mlflow
+Icon=applications-science
+Categories=Development;Science;DataVisualization;
+Terminal=false
+StartupNotify=false
+Keywords=mlflow;experiments;tracking;runs;metrics;

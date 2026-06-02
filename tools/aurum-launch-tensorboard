@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-launch-tensorboard — open TensorBoard (start a local server if none is
+# reachable), pointed at the user's run/log directory.
+#
+# Idempotent: if something already answers on $TB_URL we just open the browser.
+# Log dir defaults to ~/.aurum/tensorboard but honours $TB_LOGDIR so a training
+# script can point it at its own run directory.
+#
+# Window class: aurum-tensorboard
+# ==============================================================================
+set -euo pipefail
+
+TB_HOST="${TB_HOST:-127.0.0.1}"
+TB_PORT="${TB_PORT:-6006}"
+TB_URL="${TB_URL:-http://${TB_HOST}:${TB_PORT}}"
+TB_LOG="${TB_LOG:-/tmp/aurum-tensorboard.log}"
+TB_LOGDIR="${TB_LOGDIR:-${HOME}/.aurum/tensorboard}"
+VENV="${AURUM_DL_VENV:-/opt/aurum-dl-venv}"
+
+log()  { echo -e "\e[34m[tensorboard]\e[0m $*"; }
+warn() { echo -e "\e[33m[tensorboard]\e[0m $*" >&2; }
+
+open_browser() {
+    if command -v aurum-launch-browser >/dev/null 2>&1; then
+        exec aurum-launch-browser "$1"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        exec xdg-open "$1"
+    fi
+    log "open manually: $1"
+    exit 0
+}
+
+# Already serving? Just open it.
+if curl -fsS -o /dev/null --max-time 2 "${TB_URL}" 2>/dev/null; then
+    log "TensorBoard already up on :${TB_PORT}"
+    open_browser "${TB_URL}"
+fi
+
+# Find a tensorboard binary: prefer the shared DL venv.
+TB_BIN=""
+if [[ -x "${VENV}/bin/tensorboard" ]]; then
+    TB_BIN="${VENV}/bin/tensorboard"
+elif command -v tensorboard >/dev/null 2>&1; then
+    TB_BIN="$(command -v tensorboard)"
+fi
+
+if [[ -z "${TB_BIN}" ]]; then
+    warn "tensorboard not installed"
+    warn "install it with:  ${VENV}/bin/pip install tensorboard   (or: pip install tensorboard)"
+    command -v notify-send >/dev/null 2>&1 && \
+        notify-send "AurumOS" "TensorBoard not installed (pip install tensorboard)" || true
+    exit 127
+fi
+
+mkdir -p "${TB_LOGDIR}"
+log "starting TensorBoard on :${TB_PORT} (logdir: ${TB_LOGDIR}, log: ${TB_LOG})"
+nohup "${TB_BIN}" \
+    --host "${TB_HOST}" \
+    --port "${TB_PORT}" \
+    --logdir "${TB_LOGDIR}" \
+    >"${TB_LOG}" 2>&1 &
+
+# Wait for the server to answer before opening the browser (max ~20s).
+for _ in $(seq 1 40); do
+    curl -fsS -o /dev/null --max-time 2 "${TB_URL}" 2>/dev/null && break
+    sleep 0.5
+done
+
+open_browser "${TB_URL}"

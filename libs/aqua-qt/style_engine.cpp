@@ -109,8 +109,10 @@ extern "C" void init_aqua_style() {
         // porque en algunos entornos Qt autodetecta un tema inutil y bloqueaba Papirus.
         {
             const QString forced = qEnvironmentVariable("QT_ICON_THEME");
-            if (!forced.isEmpty()) QIcon::setThemeName(forced);
-            else if (QIcon::themeName().isEmpty()) QIcon::setThemeName("hicolor");
+            if (!forced.isEmpty())
+                QIcon::setThemeName(forced);
+            else if (QIcon::themeName().isEmpty())
+                QIcon::setThemeName("hicolor");
         }
 
         qInfo().noquote() << "[aqua-qt] Fusion + Sequoia Dark palette applied. "

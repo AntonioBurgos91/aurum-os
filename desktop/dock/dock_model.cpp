@@ -143,4 +143,8 @@ void DockModel::launchByName(const QString& appId) {
     }
 }
 
+QString DockModel::iconUrlForName(const QString& iconName) const {
+    return themed_icon_url(iconName);
+}
+
 }  // namespace aurum::dock

@@ -91,7 +91,9 @@ impl GpuMonitor {
 
 // ── small sysfs helpers ───────────────────────────────────────────────────
 fn read_str(path: &str) -> Option<String> {
-    std::fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 fn read_u64(path: &str) -> Option<u64> {
     read_str(path).and_then(|s| s.parse().ok())
@@ -111,7 +113,7 @@ enum Backend {
 // Reads real iGPU/dGPU telemetry from /sys/class/drm/cardN/device and the
 // matching hwmon node. No root needed — these are world-readable.
 struct AmdPaths {
-    card_dir: String,    // /sys/class/drm/cardN/device
+    card_dir: String, // /sys/class/drm/cardN/device
     hwmon_temp: Option<String>,
     hwmon_power: Option<String>,
     name: String,
@@ -148,7 +150,12 @@ fn detect_amd() -> Option<AmdPaths> {
             let name = read_str(&format!("{dir}/product_name"))
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "AMD Radeon (amdgpu)".into());
-            return Some(AmdPaths { card_dir: dir, hwmon_temp, hwmon_power, name });
+            return Some(AmdPaths {
+                card_dir: dir,
+                hwmon_temp,
+                hwmon_power,
+                name,
+            });
         }
     }
     None
@@ -219,7 +226,12 @@ fn detect_cpu() -> CpuReader {
             }
         }
     }
-    CpuReader { name, hwmon_temp, prev_idle: 0, prev_total: 0 }
+    CpuReader {
+        name,
+        hwmon_temp,
+        prev_idle: 0,
+        prev_total: 0,
+    }
 }
 
 fn read_cpu_busy(reader: &mut CpuReader) -> u32 {
@@ -262,9 +274,17 @@ fn read_mem() -> (u64, u64) {
     let mut avail_kb = 0u64;
     for line in info.lines() {
         if let Some(v) = line.strip_prefix("MemTotal:") {
-            total_kb = v.split_whitespace().next().and_then(|x| x.parse().ok()).unwrap_or(0);
+            total_kb = v
+                .split_whitespace()
+                .next()
+                .and_then(|x| x.parse().ok())
+                .unwrap_or(0);
         } else if let Some(v) = line.strip_prefix("MemAvailable:") {
-            avail_kb = v.split_whitespace().next().and_then(|x| x.parse().ok()).unwrap_or(0);
+            avail_kb = v
+                .split_whitespace()
+                .next()
+                .and_then(|x| x.parse().ok())
+                .unwrap_or(0);
         }
     }
     let total = total_kb * 1024;

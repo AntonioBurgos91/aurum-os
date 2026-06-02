@@ -194,9 +194,29 @@ Window {
                 Image {
                     id: mlToolsIconImg
                     anchors.fill: parent
-                    source: IconProvider.forFolder("models")
+                    // freedesktop name resolved via the installed icon theme
+                    // (Papirus) through DockModel::iconUrlForName, the same
+                    // QIcon::fromTheme path the main shelf uses. Falls back to
+                    // the labeled chip below if the theme can't resolve it.
+                    source: dockModel.iconUrlForName("applications-science")
                     fillMode: Image.PreserveAspectFit
                     smooth: true
+                    visible: status === Image.Ready
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: Theme.cornerRadiusSm
+                        color: Theme.surfaceRaised
+                        border.color: Theme.border
+                        visible: mlToolsIconImg.status !== Image.Ready
+                        Text {
+                            anchors.centerIn: parent
+                            text: "ML"
+                            color: Theme.textPrimary
+                            font.bold: true
+                            font.pixelSize: 14
+                        }
+                    }
                 }
 
                 ToolTip.visible: mlToolsClickArea.containsMouse
@@ -258,6 +278,9 @@ Window {
         id: di
         property string iconName: ""
         property string label: ""
+        // freedesktop icon name used for theme resolution; defaults to the
+        // same science glyph the ML .desktop files declare.
+        property string themeIcon: "applications-science"
         signal triggered()
 
         spacing: 4
@@ -274,11 +297,31 @@ Window {
             border.color: iconMouse.containsMouse ? Theme.border : "transparent"
 
             Image {
+                id: diIcon
                 anchors.centerIn: parent
                 width: 32; height: 32
-                source: IconProvider.forApp(di.iconName)
+                // Resolve via the icon theme; the .desktop files for these apps
+                // use the freedesktop name "applications-science", so we use the
+                // same here and fall back to a labeled chip if it can't resolve.
+                source: dockModel.iconUrlForName(di.themeIcon)
                 fillMode: Image.PreserveAspectFit
                 smooth: true
+                visible: status === Image.Ready
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.cornerRadiusSm
+                color: Theme.surfaceRaised
+                border.color: Theme.border
+                visible: diIcon.status !== Image.Ready
+                Text {
+                    anchors.centerIn: parent
+                    text: di.label ? di.label.charAt(0) : "?"
+                    color: Theme.textPrimary
+                    font.bold: true
+                    font.pixelSize: 14
+                }
             }
 
             MouseArea {

@@ -34,6 +34,11 @@ public:
     Q_INVOKABLE void launch(int row);
     Q_INVOKABLE void reload();
     Q_INVOKABLE void launchByName(const QString& appId);
+    // Resolve a freedesktop icon name (e.g. "applications-science") to a
+    // file:// URL a QML Image can load, via the installed icon theme (Papirus).
+    // Returns an empty string if the theme can't resolve it, so callers can
+    // fall back to a labeled chip. Used by the ML Tools drawer.
+    Q_INVOKABLE QString iconUrlForName(const QString& iconName) const;
 
 private:
     // Loads the user's favorites file (~/.config/aurum/dock.toml-style list)

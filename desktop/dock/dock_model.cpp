@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QIcon>
+#include <QPixmap>
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QUrl>
@@ -28,6 +29,14 @@ const QStringList kDefaultFavorites = {
     "aurum-settings",    // native Qt6 binary
 };
 
+// Render size for cached dock icons. The dock displays at Theme.dockIconSize
+// (48 px) and magnifies up to ~1.8x (~86 px), and the noVNC framebuffer may be
+// HiDPI, so we rasterize at 256 px to keep the icon crisp at every scale.
+// Papirus ships SVG sources, so QIcon renders the vector straight to this size
+// — no upscaling of a small raster (the previous code defaulted to 64 px and,
+// worse, often picked the 22 px theme entry, producing the blurry icons).
+constexpr int kIconRenderPx = 256;
+
 QString themed_icon_url(const QString& icon_name) {
     if (icon_name.isEmpty()) return {};
 
@@ -37,26 +46,29 @@ QString themed_icon_url(const QString& icon_name) {
     QIcon icon = QIcon::fromTheme(icon_name);
     if (icon.isNull()) return {};
 
-    // Pick the largest reasonable size we can request from the theme. QML's
-    // Image will scale further as needed for the dock magnification.
-    const auto sizes = icon.availableSizes();
-    QSize target(64, 64);
-    for (const auto& s : sizes) {
-        if (s.width() >= 64 && s.width() <= 256) {
-            target = s;
-            break;
-        }
+    // Ask the icon for a pixmap at our high render size. For a scalable (SVG)
+    // theme like Papirus this renders the vector at full quality; for a raster
+    // theme Qt returns the largest available and we upscale once, cleanly.
+    const QSize target(kIconRenderPx, kIconRenderPx);
+    QPixmap pm = icon.pixmap(target);
+    if (pm.isNull()) return {};
+    // If the theme handed back something smaller than requested (raster theme),
+    // scale it up once with smooth filtering so the dock isn't pixelated.
+    if (pm.width() < kIconRenderPx) {
+        pm = pm.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     }
 
     // Convert the QPixmap into a temporary file: QML can't load directly from
     // a QIcon, and image://theme/ providers require extra registration plumbing
     // we don't need yet. A short-lived file under XDG_RUNTIME_DIR is fine.
+    // Key the cache filename on the render size so bumping kIconRenderPx (or a
+    // theme change) doesn't keep serving a stale low-res PNG.
     const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR", QDir::tempPath());
     const QString cache_dir = runtime + "/aurum-dock-icons";
     QDir().mkpath(cache_dir);
-    const QString out = QString("%1/%2.png").arg(cache_dir, icon_name);
+    const QString out = QString("%1/%2@%3.png").arg(cache_dir, icon_name).arg(kIconRenderPx);
     if (!QFile::exists(out)) {
-        icon.pixmap(target).save(out, "PNG");
+        pm.save(out, "PNG");
     }
     return QUrl::fromLocalFile(out).toString();
 }

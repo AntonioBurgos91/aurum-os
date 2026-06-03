@@ -117,7 +117,7 @@ run_swaybg() {
     killall -q swaybg || true
     local pick
     if pick="$(pick_wallpaper)"; then
-        exec swaybg -i "${pick}" -m fill
+        exec swaybg -i "${pick}" -m fit
     else
         warn "no wallpaper file found; falling back to solid color ${FALLBACK_COLOR}"
         exec swaybg -c "${FALLBACK_COLOR}"

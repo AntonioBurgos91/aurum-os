@@ -55,43 +55,19 @@ Window {
         height: Theme.dockHeight
         width:  iconsRow.width + dividerSpacer.width + gpuBadge.width + 48
 
-        // Track cursor X relative to the row of icons. -1 means "not hovering".
-        property real cursorX: -1
-
-        // CRITICAL: we use HoverHandler — NOT a MouseArea — for cursor tracking.
+        // Index of the icon the pointer is currently over; -1 == none.
         //
-        // Earlier this was a MouseArea with `acceptedButtons: Qt.NoButton` +
-        // `propagateComposedEvents: true`, which Qt5/X11 honors as "track hover
-        // but pass clicks to children". On Qt6/Wayland that combination is
-        // BROKEN: the outer MouseArea swallows the click events even with
-        // NoButton, because Wayland delivers pointer.button events to the
-        // first hit-tested surface and Qt's composition layer doesn't bubble
-        // them to siblings. Result: hover events reached the icon (cursor
-        // changed shape) but clicks never did — every dock icon was visually
-        // alive but functionally dead.
-        //
-        // HoverHandler is the Qt6-native fix: it tracks hover state without
-        // ever consuming pointer button events, so the inner per-icon
-        // MouseAreas receive clicks normally.
-        HoverHandler {
-            id: hoverTracker
-            target: parent
-        }
-
-        // Drive cursorX with a DECLARATIVE binding on the handler's point,
-        // not an onPointChanged signal. On Qt6/Wayland the signal handler did
-        // not fire on every pointer-move delivered through wlroots, so the
-        // magnification looked frozen even though hover highlighting worked.
-        // A binding re-evaluates whenever point.position changes, which is the
-        // reactive path Qt actually keeps up to date. When not hovering we
-        // park cursorX off-dock (-1) so every icon eases back to scale 1.
-        Binding {
-            target: dockShelf
-            property: "cursorX"
-            value: hoverTracker.hovered
-                   ? hoverTracker.point.position.x - iconsRow.x
-                   : -1
-        }
+        // IMPORTANT — why index-based and not cursor-X-based:
+        // Under wlroots + wayvnc (the headless preview transport), Qt only
+        // receives pointer ENTER/EXIT for a surface — it does NOT get the
+        // continuous pointer-MOTION stream. We verified this with logging: a
+        // MouseArea's onEntered/onExited and a per-icon containsMouse both
+        // fire, but onPositionChanged / HoverHandler.point.position never
+        // update. So a Gaussian-of-cursor-X effect can't work here. Instead we
+        // magnify by DISTANCE-IN-ICONS from whichever icon reports
+        // containsMouse: hovered icon biggest, immediate neighbours a step
+        // smaller. Looks macOS-like and only needs enter/exit, which we have.
+        property int hoveredIndex: -1
 
         Row {
             id: iconsRow
@@ -109,19 +85,19 @@ Window {
                     height: Theme.dockIconSize
                     anchors.verticalCenter: parent.verticalCenter
 
-                    // Center of THIS icon in iconsRow coordinates.
-                    readonly property real centerX: x + width / 2
-
-                    // Gaussian magnification:
-                    //   scale = 1 + (peak-1) * exp(-d² / σ²)
-                    // d is the absolute distance from cursor to this icon's center.
-                    // When cursor is absent (cursorX < 0), scale falls back to 1.
-                    readonly property real distance:
-                        dockShelf.cursorX < 0 ? 1e6 : Math.abs(centerX - dockShelf.cursorX)
+                    // Magnify by distance-in-icons from the hovered one. The
+                    // hovered icon (d=0) gets the full peak; each step away
+                    // falls off on a Gaussian in INDEX space (sigma ~1.3 icons),
+                    // which mimics the macOS neighbour bulge without needing the
+                    // continuous cursor X that wayvnc won't deliver.
+                    readonly property int idxDist:
+                        dockShelf.hoveredIndex < 0 ? 999
+                                                   : Math.abs(index - dockShelf.hoveredIndex)
                     readonly property real targetScale:
-                        1 + (root.magnificationPeak - 1)
-                            * Math.exp(- (distance * distance)
-                                       / (root.magnificationSigma * root.magnificationSigma))
+                        dockShelf.hoveredIndex < 0
+                            ? 1.0
+                            : 1 + (root.magnificationPeak - 1)
+                                  * Math.exp(- (idxDist * idxDist) / (1.3 * 1.3))
 
                     scale: targetScale
                     Behavior on scale {
@@ -177,6 +153,11 @@ Window {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: dockModel.launch(index)
+                        // enter/exit DO arrive under wayvnc — drive the
+                        // magnification from them.
+                        onEntered: dockShelf.hoveredIndex = index
+                        onExited:  if (dockShelf.hoveredIndex === index)
+                                       dockShelf.hoveredIndex = -1
                     }
                 }
             }
@@ -188,13 +169,10 @@ Window {
                 height: Theme.dockIconSize
                 anchors.verticalCenter: parent.verticalCenter
 
-                readonly property real centerX: x + width / 2
-                readonly property real distance:
-                    dockShelf.cursorX < 0 ? 1e6 : Math.abs(centerX - dockShelf.cursorX)
+                // ML cell magnifies on its own hover (enter/exit), consistent
+                // with the index-based model used by the main shelf.
                 readonly property real targetScale:
-                    1 + (root.magnificationPeak - 1)
-                        * Math.exp(- (distance * distance)
-                                   / (root.magnificationSigma * root.magnificationSigma))
+                    mlToolsClickArea.containsMouse ? root.magnificationPeak : 1.0
 
                 scale: targetScale
                 Behavior on scale {

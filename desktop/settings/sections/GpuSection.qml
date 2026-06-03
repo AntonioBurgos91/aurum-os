@@ -31,6 +31,7 @@ Item {
 
                 // Utilization
                 Rectangle {
+                    Layout.fillWidth: true
                     Layout.preferredWidth: 220
                     Layout.preferredHeight: 120
                     radius: Theme.cornerRadius
@@ -58,6 +59,7 @@ Item {
 
                 // VRAM
                 Rectangle {
+                    Layout.fillWidth: true
                     Layout.preferredWidth: 280
                     Layout.preferredHeight: 120
                     radius: Theme.cornerRadius
@@ -86,6 +88,7 @@ Item {
 
                 // Temperature
                 Rectangle {
+                    Layout.fillWidth: true
                     Layout.preferredWidth: 160
                     Layout.preferredHeight: 120
                     radius: Theme.cornerRadius

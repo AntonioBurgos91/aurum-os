@@ -71,7 +71,11 @@ Item {
                         anchors.margins: 12
                         spacing: 2
                         Text {
-                            text: profileClient.profile.toUpperCase()
+                            // Guard against an undefined profile before the
+                            // ProfileClient daemon has answered — otherwise
+                            // QML throws TypeError on .toUpperCase() and the
+                            // badge renders blank.
+                            text: (profileClient.profile || "unknown").toUpperCase()
                             color: "#FFFFFF"
                             font.pixelSize: 28
                             font.bold: true

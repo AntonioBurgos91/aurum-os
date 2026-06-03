@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LiteLLM
+GenericName=LLM proxy
+Comment=LiteLLM proxy: unified OpenAI-compatible API
+TryExec=python
+Exec=aurum-launch-litellm
+Icon=aurum-litellm
+Categories=Development;Network;
+Terminal=false
+StartupNotify=false
+Keywords=litellm;proxy;router;openai;api;

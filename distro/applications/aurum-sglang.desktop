@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=SGLang
+GenericName=Structured generation
+Comment=SGLang server: RadixAttention + structured output
+TryExec=python
+Exec=aurum-launch-sglang
+Icon=aurum-sglang
+Categories=Development;Science;
+Terminal=false
+StartupNotify=false
+Keywords=sglang;inference;structured;llm;

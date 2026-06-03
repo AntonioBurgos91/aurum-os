@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Langfuse
+GenericName=LLM observability
+Comment=Local Langfuse stack for LLM tracing & evals
+TryExec=docker
+Exec=aurum-launch-langfuse
+Icon=aurum-langfuse
+Categories=Development;Science;
+Terminal=false
+StartupNotify=false
+Keywords=langfuse;observability;tracing;llm;

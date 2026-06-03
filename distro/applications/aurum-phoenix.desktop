@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Phoenix
+GenericName=LLM evals & tracing
+Comment=Arize Phoenix: LLM tracing and evaluation
+TryExec=python
+Exec=aurum-launch-phoenix
+Icon=aurum-phoenix
+Categories=Development;Science;
+Terminal=false
+StartupNotify=false
+Keywords=phoenix;arize;evals;tracing;llm;

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Aider
+GenericName=AI pair programming
+Comment=Aider: AI pair-programming in your terminal
+TryExec=aider
+Exec=aurum-launch-aider
+Icon=aurum-aider
+Categories=Development;
+Terminal=false
+StartupNotify=false
+Keywords=aider;ai;coding;pair;llm;

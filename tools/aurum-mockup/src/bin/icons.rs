@@ -585,6 +585,442 @@ fn draw_tensorboard(pm: &mut Pixmap) {
     }
 }
 
+// ── Extra AI/ML tools (Wave: complete the dock) ─────────────────────────────
+
+// vLLM — high-throughput inference server. Deep violet, stacked throughput bars.
+fn draw_vllm(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0x7b, 0x5c, 0xff, 0xff], [0x3a, 0x1d, 0xb8, 0xff]);
+    // Three rising bars (throughput) + a fast-forward chevron pair.
+    let base_y = y + s * 0.72;
+    for (i, h) in [0.22_f32, 0.34, 0.46].iter().enumerate() {
+        let bx = x + s * 0.20 + (i as f32) * s * 0.13;
+        fill_round_rect(
+            pm,
+            bx,
+            base_y - s * h,
+            s * 0.09,
+            s * h,
+            s * 0.03,
+            rgba8(255, 255, 255, 235),
+        );
+    }
+    // Speed chevrons (>>) top-right
+    for k in 0..2 {
+        let cxp = x + s * 0.58 + (k as f32) * s * 0.12;
+        let cyp = y + s * 0.34;
+        let mut pb = PathBuilder::new();
+        pb.move_to(cxp, cyp - s * 0.09);
+        pb.line_to(cxp + s * 0.08, cyp);
+        pb.line_to(cxp, cyp + s * 0.09);
+        if let Some(path) = pb.finish() {
+            let mut pt = Paint::default();
+            pt.set_color(rgba8(255, 255, 255, 220));
+            pt.anti_alias = true;
+            pm.stroke_path(
+                &path,
+                &pt,
+                &Stroke {
+                    width: 9.0,
+                    line_cap: LineCap::Round,
+                    line_join: LineJoin::Round,
+                    ..Default::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+}
+
+// SGLang — structured-generation server. Teal, braces around a node.
+fn draw_sglang(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0x1f, 0xc8, 0xa9, 0xff], [0x0a, 0x73, 0x6b, 0xff]);
+    let cx = x + s * 0.5;
+    let cy = y + s * 0.5;
+    // Left + right braces drawn as thick arcs (approx with chevrons).
+    for (sign, ox) in [(-1.0_f32, -0.26_f32), (1.0, 0.26)] {
+        let mut pb = PathBuilder::new();
+        pb.move_to(cx + ox * s + sign * s * 0.06, cy - s * 0.22);
+        pb.line_to(cx + ox * s - sign * s * 0.05, cy);
+        pb.line_to(cx + ox * s + sign * s * 0.06, cy + s * 0.22);
+        if let Some(path) = pb.finish() {
+            let mut pt = Paint::default();
+            pt.set_color(rgba8(255, 255, 255, 235));
+            pt.anti_alias = true;
+            pm.stroke_path(
+                &path,
+                &pt,
+                &Stroke {
+                    width: 12.0,
+                    line_cap: LineCap::Round,
+                    line_join: LineJoin::Round,
+                    ..Default::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+    // Central node
+    let r = s * 0.09;
+    fill_round_rect(
+        pm,
+        cx - r,
+        cy - r,
+        r * 2.0,
+        r * 2.0,
+        r,
+        rgba8(255, 255, 255, 245),
+    );
+}
+
+// TGI (text-generation-inference) — HF-ish yellow, a chat/text glyph.
+fn draw_tgi(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0xff, 0xd2, 0x1e, 0xff], [0xe0, 0x9a, 0x00, 0xff]);
+    // Speech bubble
+    let bx = x + s * 0.18;
+    let by = y + s * 0.22;
+    let bw = s * 0.64;
+    let bh = s * 0.42;
+    fill_round_rect(pm, bx, by, bw, bh, s * 0.10, rgba8(60, 45, 0, 235));
+    // Tail
+    let mut pb = PathBuilder::new();
+    pb.move_to(bx + s * 0.18, by + bh - 2.0);
+    pb.line_to(bx + s * 0.12, by + bh + s * 0.12);
+    pb.line_to(bx + s * 0.30, by + bh - 2.0);
+    if let Some(path) = pb.finish() {
+        let mut pt = Paint::default();
+        pt.set_color(rgba8(60, 45, 0, 235));
+        pt.anti_alias = true;
+        pm.fill_path(&path, &pt, FillRule::Winding, Transform::identity(), None);
+    }
+    // Text lines inside
+    for (i, frac) in [0.62_f32, 0.46].iter().enumerate() {
+        fill_round_rect(
+            pm,
+            bx + s * 0.10,
+            by + s * 0.12 + (i as f32) * s * 0.13,
+            bw * frac,
+            s * 0.055,
+            s * 0.025,
+            rgba8(255, 210, 30, 235),
+        );
+    }
+}
+
+// LiteLLM — proxy/router. Indigo, a routing fork (one in, many out).
+fn draw_litellm(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0x5a, 0x86, 0xff, 0xff], [0x23, 0x3e, 0xb0, 0xff]);
+    let inx = x + s * 0.24;
+    let cy = y + s * 0.5;
+    let hubx = x + s * 0.5;
+    // Input node
+    let r = s * 0.06;
+    fill_round_rect(
+        pm,
+        inx - r,
+        cy - r,
+        r * 2.0,
+        r * 2.0,
+        r,
+        rgba8(255, 255, 255, 245),
+    );
+    // Lines to 3 outputs
+    for (i, dy) in [-0.22_f32, 0.0, 0.22].iter().enumerate() {
+        let outx = x + s * 0.78;
+        let outy = cy + dy * s;
+        let mut pb = PathBuilder::new();
+        pb.move_to(inx + r, cy);
+        pb.line_to(hubx, cy);
+        pb.line_to(outx, outy);
+        if let Some(path) = pb.finish() {
+            let mut pt = Paint::default();
+            pt.set_color(rgba8(255, 255, 255, 200));
+            pt.anti_alias = true;
+            pm.stroke_path(
+                &path,
+                &pt,
+                &Stroke {
+                    width: 7.0,
+                    line_cap: LineCap::Round,
+                    line_join: LineJoin::Round,
+                    ..Default::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+        let _ = i;
+        fill_round_rect(
+            pm,
+            outx - r * 0.8,
+            outy - r * 0.8,
+            r * 1.6,
+            r * 1.6,
+            r * 0.8,
+            rgba8(255, 255, 255, 245),
+        );
+    }
+}
+
+// Langfuse — LLM observability. Deep blue, an eye/trace.
+fn draw_langfuse(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0x3d, 0x6b, 0xff, 0xff], [0x10, 0x1f, 0x6b, 0xff]);
+    let cx = x + s * 0.5;
+    let cy = y + s * 0.5;
+    // Eye outline (two chevrons forming a lens) + pupil — observability.
+    for sign in [-1.0_f32, 1.0] {
+        let mut pb = PathBuilder::new();
+        pb.move_to(cx - s * 0.28, cy);
+        pb.quad_to(cx, cy + sign * s * 0.22, cx + s * 0.28, cy);
+        if let Some(path) = pb.finish() {
+            let mut pt = Paint::default();
+            pt.set_color(rgba8(255, 255, 255, 230));
+            pt.anti_alias = true;
+            pm.stroke_path(
+                &path,
+                &pt,
+                &Stroke {
+                    width: 10.0,
+                    line_cap: LineCap::Round,
+                    ..Default::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+    let r = s * 0.09;
+    fill_round_rect(
+        pm,
+        cx - r,
+        cy - r,
+        r * 2.0,
+        r * 2.0,
+        r,
+        rgba8(255, 255, 255, 245),
+    );
+}
+
+// Phoenix (Arize) — eval/tracing. Amber-orange, a rising phoenix spark.
+fn draw_phoenix(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0xff, 0x8a, 0x3a, 0xff], [0xc4, 0x32, 0x12, 0xff]);
+    let cx = x + s * 0.5;
+    let cy = y + s * 0.52;
+    // Stylised flame/wings — central upward triangle + two side wings.
+    let mut pb = PathBuilder::new();
+    pb.move_to(cx, cy - s * 0.26);
+    pb.line_to(cx + s * 0.12, cy + s * 0.16);
+    pb.line_to(cx - s * 0.12, cy + s * 0.16);
+    pb.close();
+    if let Some(path) = pb.finish() {
+        let mut pt = Paint::default();
+        pt.set_color(rgba8(255, 255, 255, 240));
+        pt.anti_alias = true;
+        pm.fill_path(&path, &pt, FillRule::Winding, Transform::identity(), None);
+    }
+    for sign in [-1.0_f32, 1.0] {
+        let mut pb = PathBuilder::new();
+        pb.move_to(cx + sign * s * 0.10, cy - s * 0.02);
+        pb.quad_to(
+            cx + sign * s * 0.30,
+            cy - s * 0.14,
+            cx + sign * s * 0.26,
+            cy + s * 0.14,
+        );
+        if let Some(path) = pb.finish() {
+            let mut pt = Paint::default();
+            pt.set_color(rgba8(255, 255, 255, 200));
+            pt.anti_alias = true;
+            pm.stroke_path(
+                &path,
+                &pt,
+                &Stroke {
+                    width: 9.0,
+                    line_cap: LineCap::Round,
+                    ..Default::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+}
+
+// ComfyUI — node-graph image gen. Magenta/purple, connected nodes.
+fn draw_comfyui(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0xd8, 0x5c, 0xff, 0xff], [0x7a, 0x16, 0xc4, 0xff]);
+    let nodes = [(0.30_f32, 0.32_f32), (0.68, 0.30), (0.50, 0.66)];
+    // Edges first
+    let edges = [(0, 1), (0, 2), (1, 2)];
+    for (a, b) in edges {
+        let mut pb = PathBuilder::new();
+        pb.move_to(x + nodes[a].0 * s, y + nodes[a].1 * s);
+        pb.line_to(x + nodes[b].0 * s, y + nodes[b].1 * s);
+        if let Some(path) = pb.finish() {
+            let mut pt = Paint::default();
+            pt.set_color(rgba8(255, 255, 255, 170));
+            pt.anti_alias = true;
+            pm.stroke_path(
+                &path,
+                &pt,
+                &Stroke {
+                    width: 6.0,
+                    ..Default::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+    for (nx, ny) in nodes {
+        let r = s * 0.085;
+        fill_round_rect(
+            pm,
+            x + nx * s - r,
+            y + ny * s - r,
+            r * 2.0,
+            r * 2.0,
+            r * 0.5,
+            rgba8(255, 255, 255, 245),
+        );
+    }
+}
+
+// Aider — AI pair-programming in the terminal. Dark green, prompt + branch.
+fn draw_aider(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0x2f, 0x9e, 0x6a, 0xff], [0x12, 0x53, 0x39, 0xff]);
+    // ">" prompt
+    let pcx = x + s * 0.26;
+    let pcy = y + s * 0.40;
+    let mut pb = PathBuilder::new();
+    pb.move_to(pcx, pcy - s * 0.10);
+    pb.line_to(pcx + s * 0.10, pcy);
+    pb.line_to(pcx, pcy + s * 0.10);
+    if let Some(path) = pb.finish() {
+        let mut pt = Paint::default();
+        pt.set_color(rgba8(255, 255, 255, 240));
+        pt.anti_alias = true;
+        pm.stroke_path(
+            &path,
+            &pt,
+            &Stroke {
+                width: 11.0,
+                line_cap: LineCap::Round,
+                line_join: LineJoin::Round,
+                ..Default::default()
+            },
+            Transform::identity(),
+            None,
+        );
+    }
+    // Underscore cursor
+    fill_round_rect(
+        pm,
+        x + s * 0.44,
+        pcy + s * 0.04,
+        s * 0.16,
+        s * 0.05,
+        s * 0.02,
+        rgba8(255, 255, 255, 235),
+    );
+    // git-branch dots at bottom
+    let by = y + s * 0.70;
+    for (i, bx) in [0.30_f32, 0.50, 0.70].iter().enumerate() {
+        let r = s * 0.045;
+        fill_round_rect(
+            pm,
+            x + bx * s - r,
+            by - r,
+            r * 2.0,
+            r * 2.0,
+            r,
+            rgba8(255, 255, 255, 210),
+        );
+        let _ = i;
+    }
+    let mut pb = PathBuilder::new();
+    pb.move_to(x + 0.30 * s, by);
+    pb.line_to(x + 0.70 * s, by);
+    if let Some(path) = pb.finish() {
+        let mut pt = Paint::default();
+        pt.set_color(rgba8(255, 255, 255, 150));
+        pt.anti_alias = true;
+        pm.stroke_path(
+            &path,
+            &pt,
+            &Stroke {
+                width: 5.0,
+                ..Default::default()
+            },
+            Transform::identity(),
+            None,
+        );
+    }
+}
+
+// Claude Code — Anthropic terminal agent. Warm clay/orange, a > prompt + spark.
+fn draw_claude_code(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0xd9, 0x7a, 0x4e, 0xff], [0x9a, 0x42, 0x1f, 0xff]);
+    // ">_" prompt
+    let pcx = x + s * 0.24;
+    let pcy = y + s * 0.46;
+    let mut pb = PathBuilder::new();
+    pb.move_to(pcx, pcy - s * 0.11);
+    pb.line_to(pcx + s * 0.11, pcy);
+    pb.line_to(pcx, pcy + s * 0.11);
+    if let Some(path) = pb.finish() {
+        let mut pt = Paint::default();
+        pt.set_color(rgba8(255, 255, 255, 245));
+        pt.anti_alias = true;
+        pm.stroke_path(
+            &path,
+            &pt,
+            &Stroke {
+                width: 12.0,
+                line_cap: LineCap::Round,
+                line_join: LineJoin::Round,
+                ..Default::default()
+            },
+            Transform::identity(),
+            None,
+        );
+    }
+    fill_round_rect(
+        pm,
+        x + s * 0.44,
+        pcy - s * 0.02,
+        s * 0.18,
+        s * 0.055,
+        s * 0.02,
+        rgba8(255, 255, 255, 240),
+    );
+    // Spark (4-point) top-right — the "AI" hint
+    let sx = x + s * 0.70;
+    let sy = y + s * 0.28;
+    for (dx, dy) in [(0.0_f32, -0.09_f32), (0.0, 0.09), (-0.09, 0.0), (0.09, 0.0)] {
+        let mut pb = PathBuilder::new();
+        pb.move_to(sx, sy);
+        pb.line_to(sx + dx * s, sy + dy * s);
+        if let Some(path) = pb.finish() {
+            let mut pt = Paint::default();
+            pt.set_color(rgba8(255, 255, 255, 230));
+            pt.anti_alias = true;
+            pm.stroke_path(
+                &path,
+                &pt,
+                &Stroke {
+                    width: 6.0,
+                    line_cap: LineCap::Round,
+                    ..Default::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+}
+
 // ============================================================================
 // Registry + driver
 // ============================================================================
@@ -642,6 +1078,42 @@ const ICONS: &[IconSpec] = &[
     IconSpec {
         filename: "aurum-tensorboard",
         paint: draw_tensorboard,
+    },
+    IconSpec {
+        filename: "aurum-vllm",
+        paint: draw_vllm,
+    },
+    IconSpec {
+        filename: "aurum-sglang",
+        paint: draw_sglang,
+    },
+    IconSpec {
+        filename: "aurum-tgi",
+        paint: draw_tgi,
+    },
+    IconSpec {
+        filename: "aurum-litellm",
+        paint: draw_litellm,
+    },
+    IconSpec {
+        filename: "aurum-langfuse",
+        paint: draw_langfuse,
+    },
+    IconSpec {
+        filename: "aurum-phoenix",
+        paint: draw_phoenix,
+    },
+    IconSpec {
+        filename: "aurum-comfyui",
+        paint: draw_comfyui,
+    },
+    IconSpec {
+        filename: "aurum-aider",
+        paint: draw_aider,
+    },
+    IconSpec {
+        filename: "aurum-claude-code",
+        paint: draw_claude_code,
     },
 ];
 

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=vLLM
+GenericName=Inference server
+Comment=High-throughput LLM serving (vLLM)
+TryExec=python
+Exec=aurum-launch-vllm
+Icon=aurum-vllm
+Categories=Development;Science;
+Terminal=false
+StartupNotify=false
+Keywords=vllm;inference;serving;llm;gpu;

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TGI
+GenericName=Text Generation Inference
+Comment=Hugging Face text-generation-inference server
+TryExec=docker
+Exec=aurum-launch-tgi
+Icon=aurum-tgi
+Categories=Development;Science;
+Terminal=false
+StartupNotify=false
+Keywords=tgi;huggingface;inference;llm;

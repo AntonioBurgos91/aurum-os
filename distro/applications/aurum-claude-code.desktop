@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Claude Code
+GenericName=AI coding agent
+Comment=Claude Code: Anthropic terminal coding agent
+TryExec=claude
+Exec=aurum-launch-claude-code
+Icon=aurum-claude-code
+Categories=Development;
+Terminal=false
+StartupNotify=false
+Keywords=claude;anthropic;ai;coding;agent;

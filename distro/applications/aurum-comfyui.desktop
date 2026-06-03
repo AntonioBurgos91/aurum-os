@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ComfyUI
+GenericName=Node image generation
+Comment=ComfyUI node-graph diffusion image generation
+TryExec=python
+Exec=aurum-launch-comfyui
+Icon=aurum-comfyui
+Categories=Graphics;Science;
+Terminal=false
+StartupNotify=false
+Keywords=comfyui;diffusion;stable;image;nodes;

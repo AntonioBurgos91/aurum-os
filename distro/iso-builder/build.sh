@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # AurumOS ISO Builder Script
-# Customizes Pop!_OS 24.04 LTS to create the AurumOS production-ready ISO.
+#
+# Builds a bootable AurumOS live ISO from one of two bases:
+#   --base ubuntu  (default)  Self-contained: debootstraps Ubuntu 24.04 from the
+#                             official archive. No external ISO download, so it
+#                             never breaks when a vendor moves their ISO around.
+#   --base popos              Customizes a Pop!_OS 24.04 base ISO (closest to the
+#                             original design). Requires AURUM_POPOS_ISO_URL or a
+#                             local --input-iso, because Pop!_OS rotates its ISO
+#                             URLs and we refuse to hard-code one that 404s.
 # ==============================================================================
 
 set -euo pipefail
@@ -12,7 +20,16 @@ WORK_DIR="/tmp/aurum-iso-work"
 ISO_DIR="${WORK_DIR}/iso"
 CHROOT_DIR="${WORK_DIR}/chroot"
 OUT_DIR="${BASE_DIR}/build"
-DEFAULT_POP_ISO_URL="https://iso.pop-os.org/24.04/amd64/intel/1/pop-os_24.04_amd64_intel_1.iso" # Intel/AMD baseline
+# Pop!_OS rotates its ISO URLs (the old hard-coded 24.04/intel/1 path now 404s),
+# so we DON'T hard-code one. Pass a working URL via AURUM_POPOS_ISO_URL or hand a
+# local ISO with --input-iso when using --base popos.
+DEFAULT_POP_ISO_URL="${AURUM_POPOS_ISO_URL:-}"
+
+# Base selection: "ubuntu" (debootstrap, self-contained) or "popos" (vendor ISO).
+BASE_FLAVOR="ubuntu"
+# Ubuntu suite + mirror used by the debootstrap path.
+UBUNTU_SUITE="${AURUM_UBUNTU_SUITE:-noble}"
+UBUNTU_MIRROR="${AURUM_UBUNTU_MIRROR:-http://archive.ubuntu.com/ubuntu/}"
 
 INPUT_ISO=""
 VERSION="$(cat "${BASE_DIR}/VERSION" 2>/dev/null | tr -d '[:space:]')"
@@ -30,10 +47,19 @@ usage() {
 Usage: sudo $0 [options]
 
 Options:
-  -i, --input-iso <path>    Path to Pop!_OS 24.04 LTS base ISO. If omitted, downloads it automatically.
+  -b, --base <ubuntu|popos> Base system to build from. Default: ubuntu
+                            ubuntu = debootstrap from the Ubuntu archive (self-contained).
+                            popos  = customize a Pop!_OS base ISO (needs --input-iso or
+                                     AURUM_POPOS_ISO_URL).
+  -i, --input-iso <path>    (popos only) Path to a local Pop!_OS 24.04 base ISO.
   -o, --output-iso <path>   Destination path for the built AurumOS ISO. Default: ${OUTPUT_ISO}
-  -w, --work-dir <path>     Workspace directory for extraction. Default: ${WORK_DIR}
+  -w, --work-dir <path>     Workspace directory. Default: ${WORK_DIR}
   -h, --help                Show this help message.
+
+Environment:
+  AURUM_POPOS_ISO_URL   URL to fetch the Pop!_OS base ISO from (popos mode).
+  AURUM_UBUNTU_SUITE    Ubuntu suite for debootstrap (default: noble).
+  AURUM_UBUNTU_MIRROR   Ubuntu mirror for debootstrap.
 EOF
     exit 1
 }
@@ -41,6 +67,7 @@ EOF
 # Parse Arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -b|--base) BASE_FLAVOR="$2"; shift 2 ;;
         -i|--input-iso) INPUT_ISO="$2"; shift 2 ;;
         -o|--output-iso) OUTPUT_ISO="$2"; shift 2 ;;
         -w|--work-dir) WORK_DIR="$2"; shift 2 ;;
@@ -61,14 +88,21 @@ CHROOT_DIR="${WORK_DIR}/chroot"
 
 # Step 1: Check System Dependencies
 check_dependencies() {
-    log_info "Verifying host system dependencies..."
+    log_info "Verifying host system dependencies (base=${BASE_FLAVOR})..."
     local deps=(xorriso mksquashfs unsquashfs rsync wget gpg curl)
+    if [[ "${BASE_FLAVOR}" == "ubuntu" ]]; then
+        # debootstrap + grub-mkrescue replace the ISO-extraction path.
+        deps+=(debootstrap grub-mkrescue)
+    fi
+    local missing=()
     for dep in "${deps[@]}"; do
-        if ! command -v "$dep" &>/dev/null; then
-            log_error "Missing required tool: ${dep}. Install it using: apt install -y squashfs-tools xorriso rsync wget"
-            exit 1
-        fi
+        command -v "$dep" &>/dev/null || missing+=("$dep")
     done
+    if (( ${#missing[@]} )); then
+        log_error "Missing required tools: ${missing[*]}"
+        log_error "Install with: apt install -y squashfs-tools xorriso rsync wget debootstrap grub-pc-bin grub-efi-amd64-bin"
+        exit 1
+    fi
     log_success "All dependencies present."
 }
 
@@ -90,10 +124,50 @@ get_base_iso() {
         return 0
     fi
 
-    log_info "No base ISO specified. Downloading Pop!_OS 24.04 ISO from ${DEFAULT_POP_ISO_URL}..."
+    if [[ -z "${DEFAULT_POP_ISO_URL}" ]]; then
+        log_error "No Pop!_OS base ISO available."
+        log_error "Pop!_OS rotates its download URLs, so this script does not hard-code one."
+        log_error "Either: (a) pass a local ISO with --input-iso <path>, or"
+        log_error "        (b) set AURUM_POPOS_ISO_URL to a current Pop!_OS 24.04 ISO URL, or"
+        log_error "        (c) use the self-contained Ubuntu base: --base ubuntu"
+        exit 1
+    fi
+    log_info "Downloading Pop!_OS 24.04 ISO from ${DEFAULT_POP_ISO_URL}..."
     mkdir -p "${WORK_DIR}"
     wget -c "${DEFAULT_POP_ISO_URL}" -O "${INPUT_ISO}"
     log_success "Download complete."
+}
+
+# Step 2b: Build a minimal Ubuntu rootfs via debootstrap (self-contained path).
+# Produces the same CHROOT_DIR + ISO_DIR/casper layout the rest of the script
+# expects, so customize_system / rebuild_squashfs work unchanged.
+bootstrap_ubuntu() {
+    log_info "Building Ubuntu ${UBUNTU_SUITE} base via debootstrap (self-contained)..."
+    rm -rf "${ISO_DIR}" "${CHROOT_DIR}"
+    mkdir -p "${ISO_DIR}/casper" "${ISO_DIR}/boot/grub" "${CHROOT_DIR}"
+
+    debootstrap --variant=minbase --arch=amd64 \
+        --components=main,universe \
+        --include=systemd,systemd-sysv \
+        "${UBUNTU_SUITE}" "${CHROOT_DIR}" "${UBUNTU_MIRROR}"
+
+    # apt sources inside the target so the chroot stage can install packages.
+    cat > "${CHROOT_DIR}/etc/apt/sources.list" <<APT
+deb ${UBUNTU_MIRROR} ${UBUNTU_SUITE} main universe multiverse restricted
+deb ${UBUNTU_MIRROR} ${UBUNTU_SUITE}-updates main universe multiverse restricted
+deb ${UBUNTU_MIRROR} ${UBUNTU_SUITE}-security main universe multiverse restricted
+APT
+
+    # Kernel + live-boot tooling so the squashfs can boot as a live system.
+    mount_chroot
+    chroot "${CHROOT_DIR}" /bin/bash -c '
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y --no-install-recommends             linux-image-generic casper             grub-pc-bin grub-efi-amd64-bin grub-common
+    '
+    unmount_chroot
+
+    log_success "Ubuntu base ready."
 }
 
 # Step 3: Extract ISO and SquashFS
@@ -525,9 +599,21 @@ EOF
 
 # Step 7: Repackage SquashFS
 rebuild_squashfs() {
-    log_info "Recompressing SquashFS (using zstd for fast compression and load speed)..."
+    # In the ubuntu path the kernel/initrd were installed *inside* the chroot by
+    # bootstrap_ubuntu; lift them into casper/ before squashing (and exclude
+    # /boot from the squashfs so we don't ship the kernel twice).
+    if [[ "${BASE_FLAVOR}" == "ubuntu" ]]; then
+        log_info "Extracting kernel + initrd from chroot into casper/..."
+        cp "${CHROOT_DIR}"/boot/vmlinuz-* "${ISO_DIR}/casper/vmlinuz"
+        cp "${CHROOT_DIR}"/boot/initrd.img-* "${ISO_DIR}/casper/initrd"
+    fi
+
+    log_info "Recompressing SquashFS (zstd for fast load speed)..."
     rm -f "${ISO_DIR}/casper/filesystem.squashfs"
-    mksquashfs "${CHROOT_DIR}" "${ISO_DIR}/casper/filesystem.squashfs" -comp zstd -b 1048576 -noappend
+    local excl=()
+    [[ "${BASE_FLAVOR}" == "ubuntu" ]] && excl=(-e boot)
+    mksquashfs "${CHROOT_DIR}" "${ISO_DIR}/casper/filesystem.squashfs" \
+        -comp zstd -b 1048576 -noappend "${excl[@]}"
     log_success "SquashFS rebuilt."
 }
 
@@ -536,33 +622,64 @@ generate_iso() {
     log_info "Regenerating checksum files..."
     (cd "${ISO_DIR}" && find . -type f -not -name 'md5sum.txt' -not -path './isolinux/*' -exec md5sum {} + > md5sum.txt)
 
-    log_info "Generating hybrid ISO image via xorriso..."
     mkdir -p "$(dirname "${OUTPUT_ISO}")"
 
-    # Execute xorriso commands mirroring Pop!_OS parameters
-    xorriso -as mkisofs \
-        -r -V "AurumOS_Live" \
-        -o "${OUTPUT_ISO}" \
-        -J -joliet-long \
-        -b isolinux/isolinux.bin \
-        -c isolinux/boot.cat \
-        -no-emul-boot -boot-load-size 4 -boot-info-table \
-        -eltorito-alt-boot \
-        -e boot/grub/efi.img \
-        -no-emul-boot \
-        -isohybrid-gpt-basdat \
-        "${ISO_DIR}"
+    if [[ "${BASE_FLAVOR}" == "ubuntu" ]]; then
+        # Self-contained path: write a GRUB config and let grub-mkrescue produce
+        # a hybrid BIOS+UEFI ISO. This is the path validated to boot in QEMU.
+        log_info "Writing GRUB config + generating hybrid ISO via grub-mkrescue..."
+        cat > "${ISO_DIR}/boot/grub/grub.cfg" <<GRUB
+set timeout=5
+set default=0
+insmod all_video
+menuentry "AurumOS ${VERSION} (live)" {
+    linux /casper/vmlinuz boot=casper quiet splash
+    initrd /casper/initrd
+}
+menuentry "AurumOS ${VERSION} (live, safe graphics)" {
+    linux /casper/vmlinuz boot=casper nomodeset
+    initrd /casper/initrd
+}
+GRUB
+        grub-mkrescue -o "${OUTPUT_ISO}" "${ISO_DIR}"
+    else
+        # Pop!_OS path: reuse the vendor's isolinux + EFI image layout.
+        log_info "Generating hybrid ISO image via xorriso (Pop!_OS layout)..."
+        xorriso -as mkisofs \
+            -r -V "AurumOS_Live" \
+            -o "${OUTPUT_ISO}" \
+            -J -joliet-long \
+            -b isolinux/isolinux.bin \
+            -c isolinux/boot.cat \
+            -no-emul-boot -boot-load-size 4 -boot-info-table \
+            -eltorito-alt-boot \
+            -e boot/grub/efi.img \
+            -no-emul-boot \
+            -isohybrid-gpt-basdat \
+            "${ISO_DIR}"
+    fi
 
     log_success "Custom ISO built successfully: ${OUTPUT_ISO}"
 }
 
 # Master Flow execution
 main() {
+    case "${BASE_FLAVOR}" in
+        ubuntu|popos) ;;
+        *) log_error "Unknown --base '${BASE_FLAVOR}' (expected: ubuntu | popos)"; exit 1 ;;
+    esac
+
+    log_info "Building AurumOS v${VERSION} ISO (base: ${BASE_FLAVOR})"
     check_dependencies
-    get_base_iso
-    extract_iso
 
     trap unmount_chroot EXIT INT TERM
+
+    if [[ "${BASE_FLAVOR}" == "ubuntu" ]]; then
+        bootstrap_ubuntu
+    else
+        get_base_iso
+        extract_iso
+    fi
 
     mount_chroot
     customize_system

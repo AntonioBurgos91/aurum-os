@@ -388,12 +388,24 @@ customize_system() {
     mkdir -p "${CHROOT_DIR}/etc/sysctl.d"
     cat <<EOF > "${CHROOT_DIR}/etc/sysctl.d/99-aurumos.conf"
 # AurumOS Core Tuning Parameters
-vm.swappiness = 0
+#
+# vm.swappiness=180: AurumOS uses a zram (compressed-RAM) swap device, not a
+# slow disk swap. With zram, swapping is cheap, so a HIGH swappiness is correct
+# — it lets the kernel move cold pages into compressed RAM and keep more file
+# cache hot. (The old value of 0 was for disk swap and actively fought the zram
+# device this distro configures, which is incoherent.) 180 is the value the
+# kernel docs and Fedora/CachyOS recommend for zram-backed systems.
+vm.swappiness = 180
+# Reclaim dirty pages aggressively under a zram setup; pairs with swappiness.
 vm.dirty_ratio = 10
 vm.dirty_background_ratio = 5
 vm.vfs_cache_pressure = 50
+# Hugepages left at kernel default (0 static); THP stays "madvise" so DL
+# allocators that ask for it get it without forcing it system-wide.
 vm.nr_hugepages = 0
 vm.max_map_count = 1600000
+# numa_balancing only helps real multi-socket NUMA boxes; harmless elsewhere
+# but the kernel ignores it on single-node systems, so leave it on.
 kernel.numa_balancing = 1
 net.core.wmem_max = 16777216
 net.core.rmem_max = 16777216
@@ -401,19 +413,52 @@ EOF
 
     # Configure custom services (like disabling standard swap and setting up ZRAM via systemd)
     log_info "Configuring memory manager rules (ZRAM + Transparent HugePages)..."
+    # Ship a helper that sizes zram to the MACHINE, not a hard-coded 32G. The old
+    # unit reserved 32G of zram on every box — on a 16-32G laptop that can exhaust
+    # RAM under memory pressure and OOM/freeze the system. We size it to
+    # min(RAM/2, 16G): a compressed device that comfortably fits in RAM.
+    install -d -m 0755 "${CHROOT_DIR}/usr/local/sbin"
+    cat <<'SH' > "${CHROOT_DIR}/usr/local/sbin/aurum-zram-setup"
+#!/usr/bin/env bash
+# Size and activate a zram swap device proportional to physical RAM.
+# Target: 50% of RAM, capped at 16 GiB. Disk swap is NOT used — zram only.
+set -euo pipefail
+
+modprobe zram num_devices=1 || true
+DEV=/dev/zram0
+SYS=/sys/block/zram0
+
+# If a previous run left it active, reset before resizing.
+if [[ -e "${SYS}/disksize" ]] && [[ "$(cat "${SYS}/disksize")" != "0" ]]; then
+    swapoff "${DEV}" 2>/dev/null || true
+    echo 1 > "${SYS}/reset" 2>/dev/null || true
+fi
+
+# Physical RAM in KiB → bytes, then 50% capped at 16 GiB.
+ram_kib=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+half_bytes=$(( ram_kib * 1024 / 2 ))
+cap_bytes=$(( 16 * 1024 * 1024 * 1024 ))
+size_bytes=$(( half_bytes < cap_bytes ? half_bytes : cap_bytes ))
+
+echo zstd > "${SYS}/comp_algorithm" 2>/dev/null || true
+echo "${size_bytes}" > "${SYS}/disksize"
+mkswap "${DEV}" >/dev/null
+# Priority 100 so zram is preferred over any disk swap that may exist.
+swapon -p 100 "${DEV}"
+echo "[aurum-zram] activated ${size_bytes} bytes (RAM-proportional, zstd)"
+SH
+    chmod 0755 "${CHROOT_DIR}/usr/local/sbin/aurum-zram-setup"
+
     cat <<EOF > "${CHROOT_DIR}/etc/systemd/system/aurum-zram.service"
 [Unit]
-Description=AurumOS ZRAM Setup
+Description=AurumOS ZRAM swap (RAM-proportional, zstd)
 After=multi-user.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/sbin/modprobe zram
-ExecStart=/bin/bash -c "echo zstd > /sys/block/zram0/comp_algorithm"
-ExecStart=/bin/bash -c "echo 32G > /sys/block/zram0/disksize"
-ExecStart=/sbin/mkswap /dev/zram0
-ExecStart=/sbin/swapon -p 100 /dev/zram0
+ExecStart=/usr/local/sbin/aurum-zram-setup
+ExecStop=/sbin/swapoff /dev/zram0
 
 [Install]
 WantedBy=multi-user.target

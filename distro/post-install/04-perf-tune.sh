@@ -72,16 +72,21 @@ systemctl disable fstrim.timer 2>/dev/null || true   # bcachefs runs its own GC
 # --- 2. Kernel command line ---------------------------------------------------
 # `quiet`              — kill verbose kernel messages on screen
 # `splash`             — Pop!_OS's plymouth handles this; we still keep it
-# `nowatchdog`         — skips the per-core hardware watchdog probe (~80 ms)
 # `mitigations=auto`   — explicit so Pop's default isn't surprising later
 # `nvidia-drm.modeset=1` — required for Wayland sessions with NVIDIA
+#
+# NOTE: we deliberately DO NOT pass `nowatchdog`. It shaved ~80 ms off boot but
+# also disabled the hardware watchdog that can auto-recover a hung machine —
+# a bad trade on a DL workstation that may lock up under sustained GPU/RAM
+# pressure. Keeping the watchdog is the safer default; the boot budget is met
+# by service masking instead.
 CMDLINE_FILE=/etc/default/grub
 if [[ -f "${CMDLINE_FILE}" ]] && ! grep -q 'AurumOS perf cmdline' "${CMDLINE_FILE}"; then
     log "applying GRUB_CMDLINE_LINUX_DEFAULT..."
     {
         echo ""
         echo "# AurumOS perf cmdline"
-        echo "GRUB_CMDLINE_LINUX_DEFAULT=\"quiet splash nowatchdog mitigations=auto nvidia-drm.modeset=1\""
+        echo "GRUB_CMDLINE_LINUX_DEFAULT=\"quiet splash mitigations=auto nvidia-drm.modeset=1\""
         echo "GRUB_TIMEOUT=0"
         echo "GRUB_TIMEOUT_STYLE=hidden"
     } >> "${CMDLINE_FILE}"
@@ -91,7 +96,7 @@ fi
 # Pop!_OS uses systemd-boot on UEFI installs by default. Tune that too if present.
 if command -v kernelstub >/dev/null 2>&1; then
     log "applying kernelstub options for systemd-boot..."
-    kernelstub --add-options "nowatchdog nvidia-drm.modeset=1" 2>/dev/null || true
+    kernelstub --add-options "nvidia-drm.modeset=1" 2>/dev/null || true
 fi
 
 # --- 2b. inotify / kernel limits -----------------------------------------------
@@ -126,10 +131,11 @@ CFG
 # never need on a workstation.
 cat > /etc/modprobe.d/aurumos-blacklist.conf <<'CFG'
 # Modules unused on a DL workstation; skipping them shaves udev settle time.
+# We blacklist only the PC-speaker beep drivers — NOT the hardware watchdogs.
+# (iTCO_wdt / sp5100_tco were blacklisted here before; they were removed so the
+# watchdog can still auto-recover a hung system. See the cmdline note above.)
 blacklist pcspkr
 blacklist snd_pcsp
-blacklist iTCO_wdt
-blacklist sp5100_tco
 CFG
 
 # --- 5. zram swap (already configured by build.sh aurum-zram.service) --------

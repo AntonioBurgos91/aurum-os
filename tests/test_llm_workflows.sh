@@ -59,7 +59,7 @@ if [[ ${IMPORT_RC} -eq 0 ]]; then
     pass "dspy, instructor, outlines, pydantic_ai all importable"
 else
     # On lite docker preview these may legitimately be missing.
-    if [[ "${AURUM_PROFILE:-}" == "lite" ]]; then
+    if [[ "${AURUM_PROFILE:-lite}" == "lite" ]]; then
         skip "workflow libs missing on lite (expected in CPU preview)"
     else
         fail "one or more workflow libs failed to import"

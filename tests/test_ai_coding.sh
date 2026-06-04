@@ -30,6 +30,11 @@ echo "${BLD}[test_ai_coding.sh]${RST}"
 if command -v aider >/dev/null 2>&1; then
     VER=$(aider --version 2>&1 | head -1)
     pass "aider on PATH (${VER})"
+elif [[ "${AURUM_PROFILE:-lite}" == "lite" ]]; then
+    # aider is installed by 09-install-ai-coding.sh, which doesn't run in the
+    # Docker preview / CI. On the lite profile treat its absence as a SKIP,
+    # consistent with the VSCode check below and with test_cv_multimodal.sh.
+    skip "aider not on PATH (expected in headless preview / CI; install via 09-install-ai-coding.sh)"
 else
     fail "aider not on PATH (install via 09-install-ai-coding.sh)"
 fi
@@ -38,6 +43,13 @@ fi
 if command -v code >/dev/null 2>&1; then
     if code --list-extensions 2>/dev/null | grep -qi 'continue'; then
         pass "VSCode 'continue' extension installed"
+    elif [[ "${AURUM_PROFILE:-lite}" == "lite" ]]; then
+        # A `code` on PATH in the lite preview/CI is the developer's host VSCode,
+        # not the AurumOS-provisioned one (Continue is installed by
+        # 09-install-ai-coding.sh, which doesn't run here). Don't count the
+        # missing extension as a regression on lite — but DO fail on real
+        # profiles, where the provisioned VSCode must carry Continue.
+        skip "VSCode present without Continue.dev (host VSCode in preview/CI; provisioned by 09-install-ai-coding.sh)"
     else
         fail "VSCode present but Continue.dev extension not installed"
     fi

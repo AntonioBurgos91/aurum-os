@@ -254,8 +254,20 @@ aurum-model-pack install coding        # download your first model bundle
 ### 3. Build a fresh AurumOS ISO from scratch (~2-3 h)
 
 ```bash
+# Default: self-contained build from the Ubuntu 24.04 archive (no vendor ISO
+# download — won't break when an upstream ISO URL moves).
 sudo distro/iso-builder/build.sh -o build/aurumos.iso
-# → bootable hybrid USB/UEFI ISO, ~7 GB, everything above pre-installed
+# → bootable hybrid BIOS+UEFI ISO with everything above pre-installed
+```
+
+Prefer the Pop!_OS base (closest to the original NVIDIA/CUDA story)? Pop!_OS
+rotates its ISO URLs, so pass a current one explicitly:
+
+```bash
+sudo AURUM_POPOS_ISO_URL="https://iso.pop-os.org/.../pop-os_24.04_amd64_intel_N.iso" \
+    distro/iso-builder/build.sh --base popos -o build/aurumos.iso
+# …or hand it a local ISO you already downloaded:
+sudo distro/iso-builder/build.sh --base popos --input-iso ~/Downloads/pop-os.iso
 ```
 
 ### 4. Develop on the desktop itself

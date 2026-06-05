@@ -1,6 +1,6 @@
 # AurumOS — Validation Status
 
-_Last updated: 2026-06-05. This document records what has actually been
+_Last updated: 2026-06-05 (rev 2). This document records what has actually been
 exercised vs. what remains unverified, so the project's maturity is not
 overstated. A claim only moves to "verified" when it was observed working,
 not when the code "looks correct."_
@@ -15,8 +15,14 @@ hardware diversity / real users remain unverified. Treat it as `0.x-beta`.
 ## Verified working (observed, not assumed)
 
 - **Shell scripts** — 57 scripts, `shellcheck -S warning`, 0 issues.
-- **Rust daemons** — clippy `-D warnings` 0 warnings; fmt clean; unit tests
-  gpu-monitor 7/7, ml-jobs-tracker 11/11.
+- **Rust daemons** — clippy `-D warnings` 0 warnings; fmt clean. Tests now
+  exercise the real crate library (refactored from bin-only + `#[path]` to a
+  `lib` target), so coverage is measurable and the tests can't drift into
+  re-implementing the logic. Counts: gpu-monitor 10, spotlight-indexer 8,
+  ml-jobs-tracker 11 — all pass. Logic-module line coverage (cargo-llvm-cov):
+  gpu-monitor lib.rs 100%, spotlight-indexer index.rs 90% / watch.rs 80%,
+  ml-jobs-tracker mlflow.rs 100%. The `main.rs` wiring (hardware/D-Bus) is 0%,
+  not unit-testable without a GPU/bus.
 - **C++/Qt6 desktop** — clang-format clean; full build, all targets, 0 errors.
 - **Desktop runtime** — 9 apps launch with 0 QML runtime errors (headless Wayland).
 - **GPU telemetry** — real hardware read via D-Bus: `source_kind=amd-sysfs`,

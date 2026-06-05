@@ -62,13 +62,23 @@ pub fn config_path() -> PathBuf {
     base.join("aurum/mlops.toml")
 }
 
+/// Parse TOML config text, falling back to defaults on any parse error.
+///
+/// Split out from `load()` so the fallback behaviour is unit-testable without
+/// touching the filesystem: a malformed or partial `mlops.toml` must never
+/// crash the daemon — it degrades to defaults (and, for partial configs, fills
+/// only the missing fields via serde's `#[serde(default)]`).
+pub fn parse_or_default(text: &str) -> Config {
+    toml::from_str(text).unwrap_or_else(|e| {
+        log::warn!("mlops.toml parse error ({e}); using defaults");
+        Config::default()
+    })
+}
+
 pub fn load() -> Config {
     let path = config_path();
     match std::fs::read_to_string(&path) {
-        Ok(text) => toml::from_str(&text).unwrap_or_else(|e| {
-            log::warn!("mlops.toml parse error ({e}); using defaults");
-            Config::default()
-        }),
+        Ok(text) => parse_or_default(&text),
         Err(_) => {
             log::info!("no mlops.toml at {} — using defaults", path.display());
             Config::default()

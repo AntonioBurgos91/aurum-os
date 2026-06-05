@@ -7,6 +7,7 @@
 // tooling attribute these tests back to src/mlflow.rs.
 // =====================================================================
 
+use ml_jobs_tracker::config;
 use ml_jobs_tracker::mlflow;
 use mlflow::Client;
 use serde_json::json;
@@ -225,4 +226,57 @@ async fn request_timeout_returns_err() {
     let client = Client::new(&server.uri()).unwrap();
     let res = client.recent_runs("1", 5).await;
     assert!(res.is_err(), "expected timeout Err, got {res:?}");
+}
+
+// ── config parsing (config::parse_or_default) ──────────────────────────────
+// A user's mlops.toml is written by aurum-settings, but a hand-edited or
+// truncated file must never crash the daemon — it degrades to defaults.
+
+#[test]
+fn config_full_toml_parses_all_fields() {
+    let toml = r#"
+[mlflow]
+tracking_uri = "http://gpu-box:5000"
+experiment = "llama-finetune"
+
+[wandb]
+api_key = "secret"
+entity = "my-team"
+"#;
+    let c = config::parse_or_default(toml);
+    assert_eq!(c.mlflow.tracking_uri, "http://gpu-box:5000");
+    assert_eq!(c.mlflow.experiment, "llama-finetune");
+}
+
+#[test]
+fn config_empty_toml_uses_defaults() {
+    let c = config::parse_or_default("");
+    assert_eq!(c.mlflow.tracking_uri, "http://localhost:5000");
+    assert_eq!(c.mlflow.experiment, "Default");
+}
+
+#[test]
+fn config_partial_toml_fills_missing_fields() {
+    // Only tracking_uri given; experiment must fall back to its default.
+    let toml = "[mlflow]\ntracking_uri = \"http://x:5000\"\n";
+    let c = config::parse_or_default(toml);
+    assert_eq!(c.mlflow.tracking_uri, "http://x:5000");
+    assert_eq!(c.mlflow.experiment, "Default");
+}
+
+#[test]
+fn config_malformed_toml_degrades_to_defaults_not_panic() {
+    // Garbage / truncated TOML must not crash — defaults instead.
+    for bad in ["{ this is not toml", "[mlflow", "tracking_uri = ", "\0\0\0"] {
+        let c = config::parse_or_default(bad);
+        assert_eq!(c.mlflow.tracking_uri, "http://localhost:5000");
+        assert_eq!(c.mlflow.experiment, "Default");
+    }
+}
+
+#[test]
+fn config_wrong_type_degrades_to_defaults() {
+    // tracking_uri as an integer is a type error → defaults, no panic.
+    let c = config::parse_or_default("[mlflow]\ntracking_uri = 12345\n");
+    assert_eq!(c.mlflow.tracking_uri, "http://localhost:5000");
 }

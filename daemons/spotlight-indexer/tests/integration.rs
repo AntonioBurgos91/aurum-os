@@ -9,6 +9,9 @@
 #[path = "../src/index.rs"]
 mod index;
 
+#[path = "../src/watch.rs"]
+mod watch;
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -181,6 +184,48 @@ fn delete_then_commit_removes_doc() {
 #[test]
 #[ignore] // inotify is OS-dependent; run with `cargo test -- --ignored` on Linux.
 fn inotify_watcher_emits_touched_on_create() {
-    // Documentation test for watch::watch — needs a real inotify
-    // backend and a debounce window to fire events into an mpsc.
+    // Exercise watch::watch end-to-end on a real inotify backend: start a
+    // watcher on a temp dir, create a file inside it, and assert a
+    // FsChange::Touched carrying that path arrives on the channel within a
+    // bounded window. This is the live-update path the daemon relies on.
+    use std::time::Duration;
+    use watch::FsChange;
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("tokio runtime");
+
+    rt.block_on(async {
+        let dir = TempDir::new().unwrap();
+        let mut handle = watch::watch(&[dir.path().to_path_buf()]).expect("watch starts");
+
+        // Give the inotify backend a moment to arm before we mutate the dir,
+        // otherwise the create can race ahead of the watch registration.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let target = dir.path().join("freshly_created.ipynb");
+        fs::write(&target, b"{}").unwrap();
+
+        // Drain events for up to ~3s looking for a Touched on our file. Other
+        // events (e.g. dir-level modify) may arrive first; we only assert that
+        // our file's creation is reported, not that it's the only event.
+        let found = tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                match handle.rx.recv().await {
+                    Some(FsChange::Touched(p)) if p.ends_with("freshly_created.ipynb") => {
+                        break true;
+                    }
+                    Some(_) => continue, // unrelated event; keep draining
+                    None => break false, // channel closed unexpectedly
+                }
+            }
+        })
+        .await;
+
+        assert!(
+            matches!(found, Ok(true)),
+            "watcher did not emit Touched for the created file within 3s: {found:?}"
+        );
+    });
 }

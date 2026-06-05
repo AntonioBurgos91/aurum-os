@@ -1,7 +1,8 @@
 name: Auto Format (manual)
 
-# Manual-only workflow. The bootstrap-format.yml runs automatically on push.
-# This one is here for future ad-hoc reformatting passes with options.
+# Manual-only workflow for ad-hoc reformatting passes with options.
+# Routine formatting is checked by ci.yml on every push; this one applies
+# fixes on demand via the Actions "Run workflow" button.
 
 on:
   workflow_dispatch:

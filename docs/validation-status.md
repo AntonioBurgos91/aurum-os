@@ -1,6 +1,6 @@
 # AurumOS — Validation Status
 
-_Last updated: 2026-06-04. This document records what has actually been
+_Last updated: 2026-06-05. This document records what has actually been
 exercised vs. what remains unverified, so the project's maturity is not
 overstated. A claim only moves to "verified" when it was observed working,
 not when the code "looks correct."_
@@ -23,6 +23,12 @@ hardware diversity / real users remain unverified. Treat it as `0.x-beta`.
   live utilization/temperature/VRAM on AMD Radeon.
 - **Idle footprint** — desktop RAM at idle 323 MB (budget: <=600 MB).
 - **AI-stack smoke** — Wave 8/9 harness 6 PASS / 0 FAIL (SKIP where stack absent).
+- **App entries + icons** — all 22 aurum-*.desktop entries valid (Name/Exec/Type
+  present); all 22 Icon= resolve to a real file (no missing icons, no
+  duplicates); 7/7 Qt GUI apps launch and stay alive (no crash); 9/9 AI
+  launchers are valid bash that degrade gracefully when the tool is absent.
+- **Third-party apps** — Flatpak + Flathub enabled via 13-install-flatpak.sh;
+  verified live that Flathub registers and `flatpak search` returns real apps.
 - **ISO build** — `build.sh --base ubuntu` produces a hybrid BIOS+UEFI ISO.
 - **Live ISO boot** — QEMU: GRUB -> kernel -> casper -> systemd -> login.
 - **Installed-system boot** — disk install + UEFI boot in QEMU: OVMF -> GRUB ->
@@ -65,4 +71,18 @@ Legacy BIOS (SeaBIOS) boot of the installed disk image stalled at "Booting
 from Hard Disk" in this sandbox, despite a valid MBR signature and an embedded
 GRUB `core.img`. UEFI (OVMF) boot of the same system succeeded cleanly. This is
 an environment/firmware interaction, not an AurumOS defect — the live ISO boots
-under both. Real machines should prefer UEFI regardless.
+under both. Real machines should prefer UEFI regardless. 
+
+## Bugs found by the app/icon verification (2026-06-05)
+
+Auditing every .desktop revealed a real functional bug, now fixed: the Aider
+and Claude Code entries declared `Exec=aurum-launch-aider` /
+`aurum-launch-claude-code`, but build.sh installed the underlying CLIs (via
+`uv tool install`) without copying those wrapper scripts to /usr/local/bin —
+so on a real ISO clicking those two icons would have failed. Added both to the
+launcher install loop (commit 3849653).
+
+Caveat: 9 AI-launcher .desktop entries show "Exec missing" *in the Docker
+preview* because that image was built without the launchers; build.sh does
+install them on a real ISO. Not independently confirmed on a real ISO build
+(too heavy for this sandbox) — tracked under gap #2.

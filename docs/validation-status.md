@@ -1,6 +1,6 @@
 # AurumOS — Validation Status
 
-_Last updated: 2026-06-05 (rev 3). This document records what has actually been
+_Last updated: 2026-06-05 (rev 4). This document records what has actually been
 exercised vs. what remains unverified, so the project's maturity is not
 overstated. A claim only moves to "verified" when it was observed working,
 not when the code "looks correct."_
@@ -44,6 +44,18 @@ hardware diversity / real users remain unverified. Treat it as `0.x-beta`.
   and no real displays, so command *generation* is tested but not that monitors
   move or brightness changes. Needs a real Hyprland session (tracked under the
   "real hardware" gap below).
+
+- **System updater (client side)** — aurum-update (check/apply/version) +
+  aurum-update-apply (root via pkexec) + a menubar "Update" indicator. Consumes
+  the existing signed-release server side (release-iso.yml). Verified: shellcheck
+  clean (both scripts + build.sh), version_compare passes 8 cases (incl. release
+  > pre-release and numeric 0.10.0 > 0.9.0), the check→parse→JSON flow yields the
+  correct update_available against a simulated release, and the menubar builds +
+  launches with UpdateClient without crashing. NOT verified: end-to-end apply
+  against a REAL release — the repo has no published release yet, so the
+  download + per-artifact SHA-256 + root re-verify chain is built and
+  shellcheck-clean but unproven on a real download. The per-component install
+  step is a deliberate verified no-op until a tagged component bundle exists.
 - **ISO build** — `build.sh --base ubuntu` produces a hybrid BIOS+UEFI ISO.
 - **Live ISO boot** — QEMU: GRUB -> kernel -> casper -> systemd -> login.
 - **Installed-system boot** — disk install + UEFI boot in QEMU: OVMF -> GRUB ->

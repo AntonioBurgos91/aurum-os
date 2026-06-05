@@ -58,5 +58,5 @@ void TestTelemetryFormat::bytes_to_gib_converts() {
     QCOMPARE(bytes_to_gib(536870912ULL), 0.5);   // 0.5 GiB
 }
 
-QTEST_MAIN(TestTelemetryFormat)
+QTEST_GUILESS_MAIN(TestTelemetryFormat)
 #include "test_telemetry_format.moc"

@@ -75,5 +75,5 @@ void TestDisplayManager::clamp_percent_bounds() {
     QCOMPARE(DisplayManager::clamp_percent(250), 100);
 }
 
-QTEST_MAIN(TestDisplayManager)
+QTEST_GUILESS_MAIN(TestDisplayManager)
 #include "test_display_manager.moc"

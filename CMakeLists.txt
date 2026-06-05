@@ -61,6 +61,7 @@ if(BUILD_TESTS)
     if(BUILD_DESKTOP)
         add_subdirectory(desktop/finder/tests)
         add_subdirectory(desktop/dock/tests)
+        add_subdirectory(desktop/settings/tests)
     endif()
 endif()
 

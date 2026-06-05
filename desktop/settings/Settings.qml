@@ -99,6 +99,7 @@ ApplicationWindow {
     readonly property var sections: [
         { id: "general",  title: "General",      icon: "⚙" },
         { id: "gpu",      title: "GPU",          icon: "▶" },
+        { id: "display",  title: "Displays",     icon: "▦" },
         { id: "cuda",     title: "CUDA",         icon: "◆" },
         { id: "venv",     title: "Python venvs", icon: "🐍" },
         { id: "mlops",    title: "MLOps",        icon: "↔" },
@@ -167,6 +168,7 @@ ApplicationWindow {
 
             Loader { source: "sections/GeneralSection.qml" }
             Loader { source: "sections/GpuSection.qml" }
+            Loader { source: "sections/DisplaySection.qml" }
             Loader { source: "sections/CudaSection.qml" }
             Loader { source: "sections/PythonVenvsSection.qml" }
             Loader { source: "sections/MlopsSection.qml" }

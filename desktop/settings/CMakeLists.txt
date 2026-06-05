@@ -7,6 +7,8 @@ add_executable(aurum-settings
     main.cpp
     cuda_manager.cpp
     cuda_manager.h
+    display_manager.cpp
+    display_manager.h
     venv_manager.cpp
     venv_manager.h
     mlops_config.cpp

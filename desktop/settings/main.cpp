@@ -16,6 +16,7 @@
 
 #include "core_services.h"
 #include "cuda_manager.h"
+#include "display_manager.h"
 #include "mlops_config.h"
 #include "model_packs_model.h"
 #include "profile_client.h"
@@ -105,6 +106,7 @@ int main(int argc, char* argv[]) {
     init_aqua_style();
 
     aurum::settings::CudaManager cudaManager;
+    aurum::settings::DisplayManager displayManager;
     aurum::settings::VenvManager venvManager;
     aurum::settings::MlopsConfig mlopsConfig;
     aurum::settings::ModelPacksModel modelPacksModel;
@@ -118,6 +120,7 @@ int main(int argc, char* argv[]) {
 
     auto* ctx = engine.rootContext();
     ctx->setContextProperty("cudaManager", &cudaManager);
+    ctx->setContextProperty("displayMgr", &displayManager);
     ctx->setContextProperty("venvManager", &venvManager);
     ctx->setContextProperty("mlopsConfig", &mlopsConfig);
     ctx->setContextProperty("modelPacksModel", &modelPacksModel);

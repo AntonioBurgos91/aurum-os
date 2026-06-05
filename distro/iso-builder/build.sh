@@ -561,7 +561,8 @@ bash /tmp/aurum/13-install-flatpak.sh
 install -d -m 0755 /usr/local/bin /usr/local/share/aurum-os/recipes
 for t in aurum-finetune aurum-launch-vllm aurum-launch-sglang aurum-launch-tgi \
          aurum-launch-litellm aurum-launch-langfuse aurum-launch-phoenix \
-         aurum-launch-comfyui aurum-eval aurum-mcp-template \
+         aurum-launch-comfyui aurum-launch-aider aurum-launch-claude-code \
+         aurum-eval aurum-mcp-template \
          aurum-configure-continue.sh aurum-cv-download-models aurum-model-pack; do
     if [ -f "/tmp/aurum/tools/${t}" ]; then
         install -m 0755 "/tmp/aurum/tools/${t}" "/usr/local/bin/${t%.sh}"

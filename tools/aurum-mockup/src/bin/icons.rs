@@ -1021,6 +1021,125 @@ fn draw_claude_code(pm: &mut Pixmap) {
     }
 }
 
+// Installer - system setup wizard. Slate blue, a download-to-disk arrow.
+fn draw_installer(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0x5a, 0x90, 0xd8, 0xff], [0x23, 0x4e, 0x8c, 0xff]);
+    let cx = x + s * 0.5;
+    let mut pb = PathBuilder::new();
+    pb.move_to(cx, y + s * 0.22);
+    pb.line_to(cx, y + s * 0.52);
+    if let Some(path) = pb.finish() {
+        let mut pt = Paint::default();
+        pt.set_color(rgba8(255, 255, 255, 240));
+        pt.anti_alias = true;
+        pm.stroke_path(
+            &path,
+            &pt,
+            &Stroke {
+                width: 13.0,
+                line_cap: LineCap::Round,
+                ..Default::default()
+            },
+            Transform::identity(),
+            None,
+        );
+    }
+    let mut pb = PathBuilder::new();
+    pb.move_to(cx - s * 0.11, y + s * 0.40);
+    pb.line_to(cx, y + s * 0.56);
+    pb.line_to(cx + s * 0.11, y + s * 0.40);
+    if let Some(path) = pb.finish() {
+        let mut pt = Paint::default();
+        pt.set_color(rgba8(255, 255, 255, 240));
+        pt.anti_alias = true;
+        pm.stroke_path(
+            &path,
+            &pt,
+            &Stroke {
+                width: 13.0,
+                line_cap: LineCap::Round,
+                line_join: LineJoin::Round,
+                ..Default::default()
+            },
+            Transform::identity(),
+            None,
+        );
+    }
+    fill_round_rect(
+        pm,
+        x + s * 0.26,
+        y + s * 0.64,
+        s * 0.48,
+        s * 0.10,
+        s * 0.04,
+        rgba8(255, 255, 255, 235),
+    );
+}
+
+// LM Studio (lms CLI) - local LLM desktop. Indigo, a chat caret in a chip.
+fn draw_lmstudio(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0x6c, 0x63, 0xff, 0xff], [0x2f, 0x26, 0xa8, 0xff]);
+    fill_round_rect(
+        pm,
+        x + s * 0.24,
+        y + s * 0.24,
+        s * 0.52,
+        s * 0.52,
+        s * 0.12,
+        rgba8(255, 255, 255, 30),
+    );
+    let pcx = x + s * 0.36;
+    let pcy = y + s * 0.5;
+    let mut pb = PathBuilder::new();
+    pb.move_to(pcx, pcy - s * 0.10);
+    pb.line_to(pcx + s * 0.10, pcy);
+    pb.line_to(pcx, pcy + s * 0.10);
+    if let Some(path) = pb.finish() {
+        let mut pt = Paint::default();
+        pt.set_color(rgba8(255, 255, 255, 245));
+        pt.anti_alias = true;
+        pm.stroke_path(
+            &path,
+            &pt,
+            &Stroke {
+                width: 11.0,
+                line_cap: LineCap::Round,
+                line_join: LineJoin::Round,
+                ..Default::default()
+            },
+            Transform::identity(),
+            None,
+        );
+    }
+    fill_round_rect(
+        pm,
+        x + s * 0.52,
+        pcy + s * 0.04,
+        s * 0.14,
+        s * 0.05,
+        s * 0.02,
+        rgba8(255, 255, 255, 235),
+    );
+}
+
+// Model Manager - manages local model packs. Green, stacked layers.
+fn draw_model_manager(pm: &mut Pixmap) {
+    let (x, y, s, _r) = draw_squircle_base(pm, [0x35, 0xc7, 0x59, 0xff], [0x12, 0x7a, 0x32, 0xff]);
+    let cx = x + s * 0.5;
+    for (i, dy) in [0.30_f32, 0.46, 0.62].iter().enumerate() {
+        let alpha = 235 - (i as u8) * 35;
+        fill_round_rect(
+            pm,
+            cx - s * 0.26,
+            y + dy * s,
+            s * 0.52,
+            s * 0.11,
+            s * 0.05,
+            rgba8(255, 255, 255, alpha),
+        );
+    }
+}
+
 // ============================================================================
 // Registry + driver
 // ============================================================================
@@ -1114,6 +1233,18 @@ const ICONS: &[IconSpec] = &[
     IconSpec {
         filename: "aurum-claude-code",
         paint: draw_claude_code,
+    },
+    IconSpec {
+        filename: "aurum-installer",
+        paint: draw_installer,
+    },
+    IconSpec {
+        filename: "aurum-lmstudio",
+        paint: draw_lmstudio,
+    },
+    IconSpec {
+        filename: "aurum-model-manager",
+        paint: draw_model_manager,
     },
 ];
 

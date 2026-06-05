@@ -13,6 +13,7 @@ git-lfs
 pkg-config
 curl
 wget
+jq
 libvulkan-dev
 libwlroots-dev
 libwayland-dev

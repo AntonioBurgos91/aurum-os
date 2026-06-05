@@ -323,6 +323,11 @@ customize_system() {
     install -d -m 0755 "${CHROOT_DIR}/etc/aurum/model-packs"
     cp "${BASE_DIR}"/distro/assets/model-packs/*.yaml \
        "${CHROOT_DIR}/etc/aurum/model-packs/" 2>/dev/null || true
+    # Installed-version marker the updater (aurum-update) compares against the
+    # latest GitHub release. Written from the build's VERSION so the running
+    # system always knows what it is.
+    install -d -m 0755 "${CHROOT_DIR}/etc/aurum"
+    echo "${VERSION}" > "${CHROOT_DIR}/etc/aurum/version"
     install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/assets"
     cp "${BASE_DIR}/distro/assets/litellm-config.yaml"        "${CHROOT_DIR}/tmp/aurum/assets/" 2>/dev/null || true
     cp "${BASE_DIR}/distro/assets/langfuse-docker-compose.yml" "${CHROOT_DIR}/tmp/aurum/assets/" 2>/dev/null || true
@@ -346,6 +351,10 @@ customize_system() {
     cp "${BASE_DIR}/tools/aurum-cv-download-models"  "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
     cp "${BASE_DIR}/tools/aurum-model-pack"          "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
     cp "${BASE_DIR}/tools/aurum-model-pack-helpers.py" "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-update"              "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    cp "${BASE_DIR}/tools/aurum-update-apply"        "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
+    install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/polkit"
+    cp "${BASE_DIR}/distro/polkit/org.aurumos.update.policy" "${CHROOT_DIR}/tmp/aurum/polkit/" 2>/dev/null || true
 
     # Stage system-wide .desktop entries for the menu / dock / spotlight.
     log_info "Staging system-wide application entries..."
@@ -572,6 +581,23 @@ done
 install -d -m 0755 /usr/local/lib/aurum
 [ -f /tmp/aurum/tools/aurum-model-pack-helpers.py ] && \
     install -m 0644 /tmp/aurum/tools/aurum-model-pack-helpers.py /usr/local/lib/aurum/
+
+# --- System updater (client side) --------------------------------------------
+# aurum-update: user-facing CLI (check/apply). The privileged apply helper goes
+# to libexec and is reachable only through the polkit action, so the GUI/CLI
+# can request an update without running the whole updater as root.
+if [ -f /tmp/aurum/tools/aurum-update ]; then
+    install -m 0755 /tmp/aurum/tools/aurum-update /usr/local/bin/aurum-update
+fi
+if [ -f /tmp/aurum/tools/aurum-update-apply ]; then
+    install -d -m 0755 /usr/local/libexec
+    install -m 0755 /tmp/aurum/tools/aurum-update-apply /usr/local/libexec/aurum-update-apply
+fi
+if [ -f /tmp/aurum/polkit/org.aurumos.update.policy ]; then
+    install -d -m 0755 /usr/share/polkit-1/actions
+    install -m 0644 /tmp/aurum/polkit/org.aurumos.update.policy \
+        /usr/share/polkit-1/actions/org.aurumos.update.policy
+fi
 # Recipes go to a shared dir; user copies/symlinks into their projects.
 rsync -a /tmp/aurum/recipes/ /usr/local/share/aurum-os/recipes/
 

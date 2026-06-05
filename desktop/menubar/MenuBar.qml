@@ -167,6 +167,46 @@ Window {
                 tooltip: "Aggregate RX across all interfaces"
             }
 
+            // Update-available indicator: only visible when aurum-update found a
+            // newer signed release. Click to apply (opens the updater in a
+            // terminal, which prompts + escalates via pkexec). Never auto-applies.
+            Item {
+                id: updateApplet
+                visible: updateClient.updateAvailable
+                implicitHeight: Theme.menubarHeight
+                implicitWidth: updRow.implicitWidth + 14
+                Row {
+                    id: updRow
+                    anchors.centerIn: parent
+                    spacing: 4
+                    Text {
+                        text: "\u2191"  // up arrow
+                        font.bold: true
+                        font.pixelSize: 12
+                        color: Theme.accent
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: "Update"
+                        font.pixelSize: 12
+                        color: Theme.accent
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+                ToolTip.visible: updMa.containsMouse
+                ToolTip.text: "AurumOS " + updateClient.latestVersion +
+                              " is available (you have " + updateClient.installedVersion +
+                              "). Click to install."
+                ToolTip.delay: 300
+                MouseArea {
+                    id: updMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: updateClient.applyUpdate()
+                }
+            }
+
             Applet {
                 label: ""
                 value: systemClient.systemTime

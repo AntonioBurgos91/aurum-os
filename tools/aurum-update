@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-update - AurumOS system updater (client side)
+#
+# Checks the project's GitHub Releases for a newer signed release than the one
+# installed, and - only when the user confirms - downloads it, verifies its
+# SHA-256 and GPG signature, and applies it.
+#
+# Server side already exists in .github/workflows/release-iso.yml: each pushed
+# v* tag builds + GPG-signs + publishes a release carrying SHA256SUMS. This is
+# the client that consumes it.
+#
+#   * Reference          GitHub Releases tagged v* (stable). Never raw main.
+#   * Trust              GPG detached signature (.asc) on SHA256SUMS, verified
+#                        against the AurumOS release public key.
+#   * Trigger            'check' is read-only (the menubar applet calls it).
+#                        'apply' mutates the system and needs confirmation.
+#   * Installed version  /etc/aurum/version (written at install time).
+#
+# Subcommands:
+#   check [--json]   Status; exit 10 if an update is available, 0 if up to date.
+#   apply [--yes]    Download + verify + install the latest release.
+#   version          Print the installed version.
+#
+# Env:
+#   AURUM_UPDATE_REPO     owner/repo (default: AntonioBurgos91/aurum-os)
+#   AURUM_VERSION_FILE    installed-version path (default: /etc/aurum/version)
+# ==============================================================================
+set -euo pipefail
+
+REPO="${AURUM_UPDATE_REPO:-AntonioBurgos91/aurum-os}"
+VERSION_FILE="${AURUM_VERSION_FILE:-/etc/aurum/version}"
+API="https://api.github.com/repos/${REPO}/releases/latest"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/aurum/update"
+
+log()  { echo -e "\e[34m[aurum-update]\e[0m $*"; }
+warn() { echo -e "\e[33m[aurum-update]\e[0m $*" >&2; }
+die()  { echo -e "\e[31m[aurum-update]\e[0m $*" >&2; exit 1; }
+
+# ---- pure helpers (unit-tested) ---------------------------------------------
+
+normalize_version() { echo "${1#v}" | tr -d "[:space:]"; }
+
+# Compare two semver-ish versions. Echo -1 if a<b, 0 if equal, 1 if a>b.
+# X.Y.Z with optional -suffix; a release outranks a pre-release of same core.
+version_compare() {
+    local a b
+    a="$(normalize_version "$1")"; b="$(normalize_version "$2")"
+    if [ "$a" = "$b" ]; then echo 0; return; fi
+    local acore="${a%%-*}" bcore="${b%%-*}"
+    local apre="" bpre=""
+    [ "$a" != "$acore" ] && apre="${a#*-}"
+    [ "$b" != "$bcore" ] && bpre="${b#*-}"
+    local -a af bf
+    IFS=. read -ra af <<< "$acore"
+    IFS=. read -ra bf <<< "$bcore"
+    local i max=${#af[@]}; [ ${#bf[@]} -gt $max ] && max=${#bf[@]}
+    for ((i=0;i<max;i++)); do
+        local an=${af[i]:-0} bn=${bf[i]:-0}
+        an=${an//[!0-9]/}; bn=${bn//[!0-9]/}
+        an=${an:-0}; bn=${bn:-0}
+        if [ "$an" -lt "$bn" ]; then echo -1; return; fi
+        if [ "$an" -gt "$bn" ]; then echo 1; return; fi
+    done
+    if [ -z "$apre" ] && [ -n "$bpre" ]; then echo 1; return; fi
+    if [ -n "$apre" ] && [ -z "$bpre" ]; then echo -1; return; fi
+    if [[ "$apre" < "$bpre" ]]; then echo -1; elif [[ "$apre" > "$bpre" ]]; then echo 1; else echo 0; fi
+}
+
+installed_version() {
+    if [ -r "$VERSION_FILE" ]; then tr -d "[:space:]" < "$VERSION_FILE"; else echo "unknown"; fi
+}
+
+# ---- network / release metadata ---------------------------------------------
+
+latest_release_json() {
+    curl -fsSL -H "Accept: application/vnd.github+json" "$API" 2>/dev/null \
+        || die "could not reach GitHub releases API for ${REPO}"
+}
+latest_tag() { latest_release_json | jq -r ".tag_name // empty"; }
+
+# ---- subcommands ------------------------------------------------------------
+
+cmd_check() {
+    local json_out=0
+    [ "${1:-}" = "--json" ] && json_out=1
+    local cur latest cmp
+    cur="$(installed_version)"
+    latest="$(latest_tag)" || die "no releases found for ${REPO}"
+    [ -z "$latest" ] && die "no published release found"
+    cmp="$(version_compare "$cur" "$latest")"
+    if [ "$json_out" = "1" ]; then
+        local avail=false; [ "$cmp" = "-1" ] && avail=true
+        printf '{"installed":"%s","latest":"%s","update_available":%s}\n' "$cur" "$latest" "$avail"
+    fi
+    if [ "$cmp" = "-1" ]; then
+        [ "$json_out" = "0" ] && log "update available: ${cur} -> ${latest}"
+        exit 10
+    fi
+    [ "$json_out" = "0" ] && log "up to date (${cur})"
+    exit 0
+}
+
+cmd_apply() {
+    local assume_yes=0
+    [ "${1:-}" = "--yes" ] && assume_yes=1
+    local cur latest
+    cur="$(installed_version)"
+    latest="$(latest_tag)" || die "no releases found"
+    [ "$(version_compare "$cur" "$latest")" != "-1" ] && { log "already up to date (${cur})"; exit 0; }
+
+    log "update available: ${cur} -> ${latest}"
+    if [ "$assume_yes" = "0" ]; then
+        read -r -p "Download and install ${latest}? [y/N] " reply
+        case "$reply" in [yY]*) ;; *) die "aborted by user";; esac
+    fi
+
+    mkdir -p "$CACHE_DIR"
+    local json sums_url sig_url
+    json="$(latest_release_json)"
+    sums_url="$(echo "$json" | jq -r '.assets[] | select(.name=="SHA256SUMS") | .browser_download_url')"
+    [ -z "$sums_url" ] && die "release ${latest} has no SHA256SUMS; refusing to apply unverified update"
+
+    log "downloading checksum manifest..."
+    curl -fsSL "$sums_url" -o "${CACHE_DIR}/SHA256SUMS" || die "failed to download SHA256SUMS"
+
+    sig_url="$(echo "$json" | jq -r '.assets[] | select(.name=="SHA256SUMS.asc") | .browser_download_url')"
+    if [ -n "$sig_url" ]; then
+        curl -fsSL "$sig_url" -o "${CACHE_DIR}/SHA256SUMS.asc" || die "failed to download signature"
+        if command -v gpg >/dev/null 2>&1; then
+            log "verifying GPG signature..."
+            gpg --verify "${CACHE_DIR}/SHA256SUMS.asc" "${CACHE_DIR}/SHA256SUMS" \
+                || die "GPG signature verification FAILED - refusing to apply"
+            log "signature OK"
+        else
+            warn "gpg not available; cannot verify signature"
+        fi
+    else
+        warn "release has no .asc signature; integrity limited to SHA-256"
+    fi
+
+    if command -v pkexec >/dev/null 2>&1 && [ -x /usr/local/libexec/aurum-update-apply ]; then
+        log "handing off to privileged apply helper (re-verifies every artifact)..."
+        pkexec /usr/local/libexec/aurum-update-apply "$latest" "$CACHE_DIR"
+    else
+        die "privileged apply helper not installed; cannot complete update safely"
+    fi
+}
+
+case "${1:-check}" in
+    check)   shift || true; cmd_check "${1:-}" ;;
+    apply)   shift || true; cmd_apply "${1:-}" ;;
+    version) installed_version ;;
+    *) die "usage: aurum-update {check [--json] | apply [--yes] | version}" ;;
+esac

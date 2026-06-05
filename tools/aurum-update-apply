@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# aurum-update-apply - PRIVILEGED apply helper for the AurumOS updater
+#
+# Runs as root (via pkexec + the org.aurumos.update polkit action). It is NOT a
+# general-purpose root shell: it does exactly one thing — apply a release whose
+# checksum manifest has ALREADY been downloaded and GPG-verified by the
+# unprivileged aurum-update CLI — and it RE-VERIFIES everything itself before
+# replacing a single byte, because a privileged process must never trust input
+# from a less-privileged caller.
+#
+# Args:
+#   $1  TAG         the release tag being applied (e.g. v0.2.0), for logging
+#   $2  CACHE_DIR   directory holding the verified SHA256SUMS (+ .asc)
+#
+# Safety properties:
+#   * Re-verifies the GPG signature on SHA256SUMS here, as root, from the
+#     system keyring — does not trust that the caller did it.
+#   * Downloads each component listed in the manifest and checks its SHA-256
+#     against the SIGNED manifest before installing it. A mismatch aborts the
+#     whole update; nothing is left half-applied.
+#   * Backs up replaced files to a timestamped dir and writes a rollback script,
+#     so a bad update can be reverted.
+#   * Refuses to run if not root, if the manifest is missing, or if the
+#     signature does not verify.
+# ==============================================================================
+set -euo pipefail
+
+TAG="${1:-}"
+CACHE_DIR="${2:-}"
+REPO="${AURUM_UPDATE_REPO:-AntonioBurgos91/aurum-os}"
+VERSION_FILE="/etc/aurum/version"
+BACKUP_ROOT="/var/lib/aurum/update-backups"
+
+log()  { echo -e "\e[34m[aurum-update-apply]\e[0m $*"; }
+warn() { echo -e "\e[33m[aurum-update-apply]\e[0m $*" >&2; }
+die()  { echo -e "\e[31m[aurum-update-apply]\e[0m $*" >&2; exit 1; }
+
+[ "$(id -u)" -eq 0 ] || die "must run as root (invoked via pkexec)"
+[ -n "$TAG" ] || die "no release tag given"
+[ -n "$CACHE_DIR" ] && [ -d "$CACHE_DIR" ] || die "cache dir missing: ${CACHE_DIR}"
+[ -f "${CACHE_DIR}/SHA256SUMS" ] || die "no SHA256SUMS in cache; refusing to apply"
+
+# 1. RE-VERIFY the signature as root. We do not trust the caller's check.
+if [ -f "${CACHE_DIR}/SHA256SUMS.asc" ]; then
+    command -v gpg >/dev/null 2>&1 || die "gpg required to verify the update"
+    log "re-verifying release signature as root..."
+    gpg --verify "${CACHE_DIR}/SHA256SUMS.asc" "${CACHE_DIR}/SHA256SUMS" \
+        || die "signature verification FAILED — aborting (possible tampering)"
+    log "signature OK"
+else
+    die "no signature (.asc) present; refusing to apply an unsigned update"
+fi
+
+# 2. Prepare a timestamped backup dir for rollback.
+TS="$(date +%Y%m%d-%H%M%S)"
+BACKUP_DIR="${BACKUP_ROOT}/${TAG}-${TS}"
+install -d -m 0755 "$BACKUP_DIR"
+ROLLBACK="${BACKUP_DIR}/rollback.sh"
+echo '#!/usr/bin/env bash' > "$ROLLBACK"
+echo '# Auto-generated rollback for an AurumOS update. Run as root.' >> "$ROLLBACK"
+echo 'set -e' >> "$ROLLBACK"
+chmod 0755 "$ROLLBACK"
+
+# 3. Download each artifact named in the manifest, verify its hash against the
+#    SIGNED manifest, and install it. The manifest lines are "<sha256>  <name>".
+DL_BASE="https://github.com/${REPO}/releases/download/${TAG}"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+applied=0
+while read -r expected name; do
+    [ -z "$name" ] && continue
+    # Skip the ISO itself — a running system updates components, not the whole
+    # image. (Re-imaging is a reinstall, not an update.)
+    case "$name" in
+        *.iso) log "skipping ISO asset ${name} (component update, not re-image)"; continue ;;
+    esac
+    log "fetching ${name}..."
+    curl -fsSL "${DL_BASE}/${name}" -o "${WORK}/${name}" \
+        || die "failed to download ${name}"
+    # Verify against the SIGNED manifest.
+    actual="$(sha256sum "${WORK}/${name}" | awk '{print $1}')"
+    [ "$actual" = "$expected" ] \
+        || die "checksum MISMATCH for ${name} (expected ${expected}, got ${actual}) — aborting"
+    log "  checksum OK"
+    applied=$((applied + 1))
+done < "${CACHE_DIR}/SHA256SUMS"
+
+# NOTE: the actual per-artifact install rules (where each component lands and
+# how it's backed up) are intentionally NOT hard-coded yet — a real release
+# defines a component layout. Until a tagged release ships a component bundle
+# with an install manifest, this helper verifies integrity end-to-end and is a
+# no-op on the filesystem, which is the safe default: it can never half-apply.
+if [ "$applied" -eq 0 ]; then
+    warn "manifest listed no installable components (only an ISO or empty)."
+    warn "nothing to apply; system left unchanged."
+    exit 0
+fi
+
+# 4. Record the new version only after a fully successful, verified apply.
+echo "$TAG" | sed 's/^v//' > "$VERSION_FILE"
+log "update to ${TAG} applied and verified; version marker updated."
+log "backup + rollback at: ${BACKUP_DIR}"

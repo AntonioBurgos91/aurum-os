@@ -312,6 +312,94 @@ private:
     qulonglong m_lastRx = 0;
 };
 
+// UpdateClient — polls `aurum-update check --json` off the UI thread and
+// exposes whether a newer signed release is available. The check is read-only
+// and safe to run unattended; applying is a separate, user-confirmed action
+// that shells out to `aurum-update apply` in a terminal (which then prompts
+// and escalates via pkexec). We never apply automatically.
+class UpdateClient : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY changed)
+    Q_PROPERTY(QString installedVersion READ installedVersion NOTIFY changed)
+    Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY changed)
+    Q_PROPERTY(bool checking READ checking NOTIFY changed)
+
+public:
+    explicit UpdateClient(QObject* parent = nullptr) : QObject(parent) {
+        // First check shortly after login, then every 6 hours. Never blocks
+        // the UI: QProcess runs async and we parse on finished().
+        auto* t = new QTimer(this);
+        connect(t, &QTimer::timeout, this, &UpdateClient::check);
+        t->start(6 * 60 * 60 * 1000);
+        QTimer::singleShot(8000, this, &UpdateClient::check);
+    }
+
+    bool updateAvailable() const {
+        return m_available;
+    }
+    QString installedVersion() const {
+        return m_installed;
+    }
+    QString latestVersion() const {
+        return m_latest;
+    }
+    bool checking() const {
+        return m_checking;
+    }
+
+    // Read-only check. Spawns `aurum-update check --json` and parses the result.
+    Q_INVOKABLE void check() {
+        if (m_checking) return;
+        m_checking = true;
+        emit changed();
+        auto* p = new QProcess(this);
+        connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [this, p](int, QProcess::ExitStatus) {
+                    const QByteArray out = p->readAllStandardOutput();
+                    parseCheck(QString::fromUtf8(out));
+                    m_checking = false;
+                    emit changed();
+                    p->deleteLater();
+                });
+        connect(p, &QProcess::errorOccurred, this, [this, p](QProcess::ProcessError) {
+            m_checking = false;
+            emit changed();
+            p->deleteLater();
+        });
+        p->start("aurum-update", {"check", "--json"});
+    }
+
+    // User-confirmed apply. Opens the updater in a terminal so the user sees
+    // the download + verification + (pkexec) auth prompt. We do NOT run the
+    // privileged step ourselves.
+    Q_INVOKABLE void applyUpdate() {
+        const QString term = qEnvironmentVariable("AURUM_TERMINAL", "ghostty");
+        QProcess::startDetached(term, {"-e", "aurum-update", "apply"});
+    }
+
+signals:
+    void changed();
+
+private:
+    void parseCheck(const QString& jsonText) {
+        // Expected: {"installed":"X","latest":"Y","update_available":true|false}
+        static const QRegularExpression reInst("\"installed\"\s*:\s*\"([^\"]*)\"");
+        static const QRegularExpression reLat("\"latest\"\s*:\s*\"([^\"]*)\"");
+        static const QRegularExpression reAvail("\"update_available\"\s*:\s*(true|false)");
+        const auto mi = reInst.match(jsonText);
+        const auto ml = reLat.match(jsonText);
+        const auto ma = reAvail.match(jsonText);
+        if (mi.hasMatch()) m_installed = mi.captured(1);
+        if (ml.hasMatch()) m_latest = ml.captured(1);
+        m_available = ma.hasMatch() && ma.captured(1) == "true";
+    }
+
+    bool m_available = false;
+    bool m_checking = false;
+    QString m_installed;
+    QString m_latest;
+};
+
 int main(int argc, char* argv[]) {
     init_core_services();
     init_ml_integrations();
@@ -322,6 +410,7 @@ int main(int argc, char* argv[]) {
     init_aqua_style();
 
     SystemClient systemClient;
+    UpdateClient updateClient;
 
     QQmlApplicationEngine engine;
     engine.addImportPath("/usr/lib/qt6/qml");
@@ -333,6 +422,7 @@ int main(int argc, char* argv[]) {
     // Some applets read from gpuClient (legacy QML); alias to systemClient so
     // either name works in the menubar QML during the transition.
     engine.rootContext()->setContextProperty("gpuClient", &systemClient);
+    engine.rootContext()->setContextProperty("updateClient", &updateClient);
 
     const QString qml = resolve_qml_path("MenuBar.qml", argv[0]);
     engine.load(QUrl::fromLocalFile(qml));

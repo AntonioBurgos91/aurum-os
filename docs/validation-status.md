@@ -1,6 +1,6 @@
 # AurumOS — Validation Status
 
-_Last updated: 2026-06-05 (rev 2). This document records what has actually been
+_Last updated: 2026-06-05 (rev 3). This document records what has actually been
 exercised vs. what remains unverified, so the project's maturity is not
 overstated. A claim only moves to "verified" when it was observed working,
 not when the code "looks correct."_
@@ -35,6 +35,15 @@ hardware diversity / real users remain unverified. Treat it as `0.x-beta`.
   launchers are valid bash that degrade gracefully when the tool is absent.
 - **Third-party apps** — Flatpak + Flathub enabled via 13-install-flatpak.sh;
   verified live that Flathub registers and `flatpak search` returns real apps.
+- **Display settings panel** — new Settings "Displays" section (monitors,
+  brightness, night light). Verified: clean build, aurum-settings launches
+  without crashing in the live preview, and the pure logic (hyprctl JSON
+  parsing, `monitor=` keyword construction, Kelvin labels, brightness clamp)
+  is unit-tested (settings::display_manager, 5 cases). NOT verified: actual
+  hardware control — the preview is headless with no hyprctl/hyprsunset/ddcutil
+  and no real displays, so command *generation* is tested but not that monitors
+  move or brightness changes. Needs a real Hyprland session (tracked under the
+  "real hardware" gap below).
 - **ISO build** — `build.sh --base ubuntu` produces a hybrid BIOS+UEFI ISO.
 - **Live ISO boot** — QEMU: GRUB -> kernel -> casper -> systemd -> login.
 - **Installed-system boot** — disk install + UEFI boot in QEMU: OVMF -> GRUB ->

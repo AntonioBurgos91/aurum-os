@@ -300,7 +300,8 @@ customize_system() {
              05-install-quantization.sh 06-install-finetuning.sh \
              07-install-llm-serving.sh 08-install-llm-workflows.sh \
              09-install-ai-coding.sh 10-install-observability.sh \
-             11-install-cv-multimodal.sh 12-install-model-pack-manager.sh; do
+             11-install-cv-multimodal.sh 12-install-model-pack-manager.sh \
+             13-install-flatpak.sh; do
         cp "${BASE_DIR}/distro/post-install/${f}" "${CHROOT_DIR}/tmp/aurum/"
     done
     # Pinned pip requirements per domain
@@ -552,6 +553,9 @@ bash /tmp/aurum/09-install-ai-coding.sh
 bash /tmp/aurum/10-install-observability.sh
 bash /tmp/aurum/11-install-cv-multimodal.sh
 bash /tmp/aurum/12-install-model-pack-manager.sh
+
+# Third-party app support: Flatpak + Flathub (sandboxed GUI apps).
+bash /tmp/aurum/13-install-flatpak.sh
 
 # Install all SOTA launchers + recipes system-wide.
 install -d -m 0755 /usr/local/bin /usr/local/share/aurum-os/recipes

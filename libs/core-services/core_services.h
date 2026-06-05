@@ -57,6 +57,25 @@ QString strip_field_codes(QString exec);
 /// same desktop entry id. Public for testing.
 std::mutex& launch_mutex_for(const QString& id);
 
+// ── Telemetry formatting (menubar readout) ──────────────────────────────────
+// Pure helpers extracted from aurum-menubar's SystemClient so the values the
+// user actually sees can be unit-tested without a D-Bus daemon.
+
+/// Format a received-bytes-per-second delta as the menubar's network readout.
+/// Below 0.1 MB/s it switches to KB/s (one decimal); at/above, MB/s (one
+/// decimal). e.g. 0 -> "0.0 KB/s", 524288 -> "512.0 KB/s", 5242880 -> "5.0 MB/s".
+QString format_net_throughput(qulonglong bytes_per_sec);
+
+/// The applet relabels GPU/VRAM as CPU/RAM on the CPU-fallback backend.
+/// `source_kind` is the daemon's source_kind() ("nvml"|"amd-sysfs"|"cpu"|...).
+/// Returns "CPU" for the cpu backend, "GPU" otherwise.
+QString util_label_for(const QString& source_kind);
+/// Returns "RAM" for the cpu backend, "VRAM" otherwise.
+QString mem_label_for(const QString& source_kind);
+
+/// Convert a byte count to gibibytes (1024^3). Used for the VRAM/RAM readout.
+double bytes_to_gib(qulonglong bytes);
+
 }  // namespace aurum::core
 
 /// Resolve a QML file path by checking, in order:

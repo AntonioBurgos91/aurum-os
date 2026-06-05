@@ -72,10 +72,10 @@ public:
         return m_util;
     }
     double vramUsedGb() const {
-        return m_used / 1073741824.0;
+        return aurum::core::bytes_to_gib(m_used);
     }
     double vramTotalGb() const {
-        return m_total / 1073741824.0;
+        return aurum::core::bytes_to_gib(m_total);
     }
     int gpuTemp() const {
         return m_temp;
@@ -90,10 +90,10 @@ public:
     // applet labels switch from GPU/VRAM to CPU/RAM. NVIDIA (nvml) and AMD
     // (amd-sysfs) are real GPUs, so they keep GPU/VRAM.
     QString utilLabel() const {
-        return m_sourceKind == "cpu" ? "CPU" : "GPU";
+        return aurum::core::util_label_for(m_sourceKind);
     }
     QString memLabel() const {
-        return m_sourceKind == "cpu" ? "RAM" : "VRAM";
+        return aurum::core::mem_label_for(m_sourceKind);
     }
     QString netThroughput() const {
         return m_net;
@@ -188,9 +188,7 @@ private:
     void pollNet() {
         const qulonglong now = readTotalRxBytes();
         const qulonglong delta = now >= m_lastRx ? now - m_lastRx : 0;
-        const double mbps = static_cast<double>(delta) / (1024.0 * 1024.0);
-        m_net = mbps < 0.1 ? QString::number(mbps * 1024.0, 'f', 1) + " KB/s"
-                           : QString::number(mbps, 'f', 1) + " MB/s";
+        m_net = aurum::core::format_net_throughput(delta);
         m_lastRx = now;
     }
 

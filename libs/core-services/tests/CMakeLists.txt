@@ -19,3 +19,7 @@ add_test(NAME core_services::resolve_path COMMAND test_resolve_path)
 add_executable(test_dedup_mutex    test_dedup_mutex.cpp)
 target_link_libraries(test_dedup_mutex PRIVATE Qt6::Core Qt6::Test core-services)
 add_test(NAME core_services::dedup_mutex COMMAND test_dedup_mutex)
+
+add_executable(test_telemetry_format test_telemetry_format.cpp)
+target_link_libraries(test_telemetry_format PRIVATE Qt6::Core Qt6::Test core-services)
+add_test(NAME core_services::telemetry_format COMMAND test_telemetry_format)

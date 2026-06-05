@@ -266,6 +266,29 @@ qint64 launch_desktop_entry(const DesktopEntry& entry) {
     return pid;
 }
 
+// ── Telemetry formatting (extracted from aurum-menubar SystemClient) ─────────
+// Pure functions so the readout the user sees is unit-tested without a daemon.
+
+QString format_net_throughput(qulonglong bytes_per_sec) {
+    const double mbps = static_cast<double>(bytes_per_sec) / (1024.0 * 1024.0);
+    if (mbps < 0.1) {
+        return QString::number(mbps * 1024.0, 'f', 1) + " KB/s";
+    }
+    return QString::number(mbps, 'f', 1) + " MB/s";
+}
+
+QString util_label_for(const QString& source_kind) {
+    return source_kind == "cpu" ? QStringLiteral("CPU") : QStringLiteral("GPU");
+}
+
+QString mem_label_for(const QString& source_kind) {
+    return source_kind == "cpu" ? QStringLiteral("RAM") : QStringLiteral("VRAM");
+}
+
+double bytes_to_gib(qulonglong bytes) {
+    return static_cast<double>(bytes) / 1073741824.0;
+}
+
 }  // namespace aurum::core
 
 // Resolve the QML file path. Centralised so every desktop app uses the same

@@ -24,30 +24,10 @@ use nvml_wrapper::{enum_wrappers::device::TemperatureSensor, Nvml};
 use tokio::sync::Mutex;
 use zbus::{connection::Builder, interface};
 
-#[derive(Debug, Clone)]
-struct GpuState {
-    name: String,
-    source_kind: String, // "nvml" | "amd-sysfs" | "cpu" | "none"
-    utilization: u32,    // % (GPU busy, or CPU busy on the cpu backend)
-    vram_total: u64,     // bytes (VRAM, or RAM total on the cpu backend)
-    vram_used: u64,      // bytes (VRAM used, or RAM used on the cpu backend)
-    temperature: u32,    // °C
-    power_draw_mw: u32,  // milliwatts (0 if the backend can't measure it)
-}
-
-impl Default for GpuState {
-    fn default() -> Self {
-        Self {
-            name: "Initializing…".into(),
-            source_kind: "none".into(),
-            utilization: 0,
-            vram_total: 0,
-            vram_used: 0,
-            temperature: 0,
-            power_draw_mw: 0,
-        }
-    }
-}
+use gpu_monitor::{
+    cpu_busy_from_jiffies, microwatts_to_milliwatts, millidegrees_to_celsius, parse_meminfo,
+    parse_proc_stat_cpu_line, GpuState,
+};
 
 struct GpuMonitor {
     state: Arc<Mutex<GpuState>>,
@@ -169,13 +149,13 @@ async fn poll_amd(p: &AmdPaths, state: &Arc<Mutex<GpuState>>) {
         .hwmon_temp
         .as_ref()
         .and_then(|f| read_u64(f))
-        .map(|millideg| (millideg / 1000) as u32)
+        .map(millidegrees_to_celsius)
         .unwrap_or(0);
     let power_mw = p
         .hwmon_power
         .as_ref()
         .and_then(|f| read_u64(f))
-        .map(|microwatt| (microwatt / 1000) as u32) // µW → mW
+        .map(microwatts_to_milliwatts) // µW → mW
         .unwrap_or(0);
 
     let mut s = state.lock().await;
@@ -235,61 +215,25 @@ fn detect_cpu() -> CpuReader {
 }
 
 fn read_cpu_busy(reader: &mut CpuReader) -> u32 {
-    // /proc/stat first line: cpu user nice system idle iowait irq softirq steal ...
+    // Read /proc/stat; the pure jiffies→% math lives in the library so it can
+    // be unit-tested without touching the filesystem.
     let stat = match std::fs::read_to_string("/proc/stat") {
         Ok(s) => s,
         Err(_) => return 0,
     };
-    let line = stat.lines().next().unwrap_or("");
-    let vals: Vec<u64> = line
-        .split_whitespace()
-        .skip(1)
-        .filter_map(|v| v.parse().ok())
-        .collect();
-    if vals.len() < 5 {
-        return 0;
-    }
-    let idle = vals[3] + vals.get(4).copied().unwrap_or(0); // idle + iowait
-    let total: u64 = vals.iter().sum();
-
-    let d_total = total.saturating_sub(reader.prev_total);
-    let d_idle = idle.saturating_sub(reader.prev_idle);
-    reader.prev_total = total;
+    let vals = parse_proc_stat_cpu_line(&stat);
+    let (busy, idle, total) = cpu_busy_from_jiffies(&vals, reader.prev_idle, reader.prev_total);
     reader.prev_idle = idle;
-
-    if d_total == 0 {
-        return 0;
-    }
-    let busy = 100.0 * (d_total.saturating_sub(d_idle) as f64) / (d_total as f64);
-    busy.round().clamp(0.0, 100.0) as u32
+    reader.prev_total = total;
+    busy
 }
 
 fn read_mem() -> (u64, u64) {
-    // Returns (total_bytes, used_bytes) using MemTotal - MemAvailable.
-    let info = match std::fs::read_to_string("/proc/meminfo") {
-        Ok(s) => s,
-        Err(_) => return (0, 0),
-    };
-    let mut total_kb = 0u64;
-    let mut avail_kb = 0u64;
-    for line in info.lines() {
-        if let Some(v) = line.strip_prefix("MemTotal:") {
-            total_kb = v
-                .split_whitespace()
-                .next()
-                .and_then(|x| x.parse().ok())
-                .unwrap_or(0);
-        } else if let Some(v) = line.strip_prefix("MemAvailable:") {
-            avail_kb = v
-                .split_whitespace()
-                .next()
-                .and_then(|x| x.parse().ok())
-                .unwrap_or(0);
-        }
+    // Read /proc/meminfo; the parsing lives in the library for unit testing.
+    match std::fs::read_to_string("/proc/meminfo") {
+        Ok(info) => parse_meminfo(&info),
+        Err(_) => (0, 0),
     }
-    let total = total_kb * 1024;
-    let used = total.saturating_sub(avail_kb * 1024);
-    (total, used)
 }
 
 async fn poll_cpu(reader: &mut CpuReader, state: &Arc<Mutex<GpuState>>) {
@@ -299,7 +243,7 @@ async fn poll_cpu(reader: &mut CpuReader, state: &Arc<Mutex<GpuState>>) {
         .hwmon_temp
         .as_ref()
         .and_then(|f| read_u64(f))
-        .map(|millideg| (millideg / 1000) as u32)
+        .map(millidegrees_to_celsius)
         .unwrap_or(0);
 
     let mut s = state.lock().await;

@@ -1,16 +1,13 @@
 // =====================================================================
 // spotlight-indexer integration tests
 //
-// We pull in `src/index.rs` via `#[path]` so we can exercise the
-// `Indexer` API without exposing it publicly from the binary crate.
-// The watcher module is OS-dependent (inotify) and is not tested here.
+// We import the crate library (`spotlight_indexer::{index, watch}`) to
+// exercise the `Indexer` API and the live watcher. Importing the lib (vs
+// #[path]) lets coverage tooling attribute these tests back to src/.
 // =====================================================================
 
-#[path = "../src/index.rs"]
-mod index;
-
-#[path = "../src/watch.rs"]
-mod watch;
+use spotlight_indexer::index;
+use spotlight_indexer::watch;
 
 use std::fs;
 use std::path::PathBuf;

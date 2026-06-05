@@ -20,8 +20,7 @@
 //               poke()  -> ()         (force an immediate refresh)
 // ==============================================================================
 
-mod config;
-mod mlflow;
+use ml_jobs_tracker::{config, mlflow};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,8 +28,8 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use zbus::{connection::Builder, interface};
 
-use crate::config::Config;
-use crate::mlflow::RunSummary;
+use ml_jobs_tracker::config::Config;
+use ml_jobs_tracker::mlflow::RunSummary;
 
 struct State {
     cfg: Config,

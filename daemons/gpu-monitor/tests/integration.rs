@@ -1,135 +1,138 @@
 // =====================================================================
 // gpu-monitor integration tests
 //
-// The production binary is a single main.rs whose internals (`GpuState`,
-// `step_sim`, `poll_real`) are private and depend on NVML/D-Bus runtime
-// state. We can't reach those from this external integration crate
-// without exposing them publicly, which we deliberately avoid.
+// These exercise the REAL pure-logic functions exported from the crate
+// library (`gpu_monitor::*`) — jiffies→% CPU math, /proc/stat and
+// /proc/meminfo parsing, hwmon unit conversions, and the GpuState shape.
+// Previously these were "mirror" tests that re-implemented the math; now
+// they call the production code directly, so a regression in the daemon's
+// logic actually fails a test (and coverage attributes back to src/lib.rs).
 //
-// What we CAN do here:
-//   * Verify the test target compiles and links against the crate's
-//     dev-dependencies, so the scaffolding works for future tests.
-//   * Re-implement (and verify) the pure-math invariants the production
-//     code relies on — utilization percentage clamping, the sim VRAM
-//     baseline, and the ISO-encoded GPU state shape — as black-box
-//     reference tests that will catch regressions if the production
-//     constants drift.
-//   * Document the real-hardware NVML test as #[ignore] so it can be
-//     run explicitly on a CUDA host with `cargo test -- --ignored`.
+// The real-hardware NVML path stays #[ignore] — it needs a CUDA host.
 // =====================================================================
 
-/// Mirrors the layout of `GpuState` in `src/main.rs`. Kept in sync by
-/// reviewers; the production type is private and we don't want to
-/// expose it just for tests. If the production struct changes, this
-/// reference shape (and the asserts below) should be updated.
-#[derive(Debug, Default, PartialEq, Eq)]
-struct GpuStateShape {
-    name: String,
-    utilization: u32,
-    vram_total: u64,
-    vram_used: u64,
-    temperature: u32,
-    power_draw_mw: u32,
-}
-
-#[test]
-fn sanity_check_compiles() {
-    // Smoke test: the test target builds and the test binary runs.
-    assert_eq!(2 + 2, 4);
-}
+use gpu_monitor::{
+    cpu_busy_from_jiffies, microwatts_to_milliwatts, millidegrees_to_celsius, parse_meminfo,
+    parse_proc_stat_cpu_line, GpuState,
+};
 
 #[test]
 fn gpu_state_default_is_zeroed_numeric_fields() {
-    // Mirrors GpuState::default() in src/main.rs: all numeric counters
-    // are zero so the D-Bus surface reports "no data yet" before the
-    // first poll completes.
-    let s = GpuStateShape::default();
+    // Before the first poll the D-Bus surface must report "no data yet".
+    let s = GpuState::default();
     assert_eq!(s.utilization, 0);
     assert_eq!(s.vram_total, 0);
     assert_eq!(s.vram_used, 0);
     assert_eq!(s.temperature, 0);
     assert_eq!(s.power_draw_mw, 0);
+    assert_eq!(s.source_kind, "none");
 }
 
 #[test]
-fn utilization_percentage_is_clamped_to_u32_domain() {
-    // NVML returns 0..=100 in a u32. We assert the invariant the D-Bus
-    // contract requires: a u32 is never above 100 in practice.
-    // (Production reads NVML's u32 directly with unwrap_or(0); the test
-    // documents the expected range.)
-    for raw in [0u32, 1, 50, 99, 100] {
-        let clamped = raw.min(100);
-        assert!(clamped <= 100);
-        assert_eq!(clamped, raw);
-    }
-    // Anything above 100 should be visibly out-of-range — we record the
-    // expectation so an accidental "u32 -> %" misuse would be caught.
-    let over = 250u32.min(100);
-    assert_eq!(over, 100);
+fn gpu_state_is_clone_eq() {
+    // The D-Bus methods clone the state under a mutex; Clone must round-trip.
+    let s = GpuState {
+        name: "AMD Radeon (amdgpu)".into(),
+        source_kind: "amd-sysfs".into(),
+        utilization: 42,
+        vram_total: 536_870_912,
+        vram_used: 100_000_000,
+        temperature: 58,
+        power_draw_mw: 12_000,
+    };
+    assert_eq!(s, s.clone());
+}
+
+#[test]
+fn cpu_busy_75_percent_from_jiffies_delta() {
+    // With prev=(0,0) there IS a delta vs zero, so the first sample already
+    // reports a value: dTotal=1000, dIdle=850 → 100*(1000-850)/1000 = 15%.
+    // (The daemon's very first reading is against prev=0; this documents that.)
+    let baseline = [100u64, 0, 50, 800, 50]; // total=1000, idle+iowait=850
+    let (busy0, idle0, total0) = cpu_busy_from_jiffies(&baseline, 0, 0);
+    assert_eq!(busy0, 15);
+    assert_eq!(idle0, 850);
+    assert_eq!(total0, 1000);
+
+    // Next sample vs the previous one: total=2000 (Δ1000), idle+iowait=1100
+    // (Δ250) → busy = 100*(1000-250)/1000 = 75%.
+    let next = [850u64, 0, 50, 1050, 50];
+    let (busy1, _, _) = cpu_busy_from_jiffies(&next, idle0, total0);
+    assert_eq!(busy1, 75);
+}
+
+#[test]
+fn cpu_busy_is_zero_when_no_delta() {
+    // Same totals twice → dTotal=0 → 0% (and no panic / div-by-zero).
+    let vals = [100u64, 0, 50, 800, 50];
+    let (busy, idle, total) = cpu_busy_from_jiffies(&vals, 850, 1000);
+    assert_eq!(busy, 0);
+    assert_eq!(idle, 850);
+    assert_eq!(total, 1000);
+}
+
+#[test]
+fn cpu_busy_is_clamped_and_tolerates_short_input() {
+    // Fewer than 5 fields → safe 0, carrying prev values forward.
+    let (busy, idle, total) = cpu_busy_from_jiffies(&[1, 2, 3], 7, 9);
+    assert_eq!((busy, idle, total), (0, 7, 9));
+    // Fully busy: idle unchanged, total grows → ~100%.
+    let (busy_full, _, _) = cpu_busy_from_jiffies(&[1100, 0, 0, 800, 50], 850, 1000);
+    assert_eq!(busy_full, 100);
+}
+
+#[test]
+fn parse_proc_stat_extracts_cpu_jiffies() {
+    let stat = "cpu  100 0 50 800 50 0 0 0 0 0\ncpu0 25 0 12 200 12\nintr 12345\n";
+    let vals = parse_proc_stat_cpu_line(stat);
+    assert_eq!(vals, vec![100, 0, 50, 800, 50, 0, 0, 0, 0, 0]);
+    // Wire it to the math: this is exactly what read_cpu_busy does. Against
+    // prev=(0,0) the delta is the absolute jiffies → 15% for this sample.
+    let (busy, _, _) = cpu_busy_from_jiffies(&vals, 0, 0);
+    assert_eq!(busy, 15);
+    // Malformed first line → empty.
+    assert!(parse_proc_stat_cpu_line("garbage\n").is_empty());
 }
 
 #[test]
 fn meminfo_used_is_total_minus_available() {
-    // Mirrors read_mem() in src/main.rs: used = MemTotal - MemAvailable,
-    // both converted from kB to bytes. Reference sample from a real host.
-    let total_kb: u64 = 32_182_036;
-    let avail_kb: u64 = 24_692_352;
-    let total = total_kb * 1024;
-    let used = total.saturating_sub(avail_kb * 1024);
-    assert_eq!(total, 32_954_404_864);
-    assert_eq!(used, 7_669_436_416);
+    let info = "\
+MemTotal:       32182036 kB
+MemFree:         1000000 kB
+MemAvailable:   24692352 kB
+Buffers:          500000 kB
+";
+    let (total, used) = parse_meminfo(info);
+    assert_eq!(total, 32_182_036 * 1024);
+    assert_eq!(used, (32_182_036 - 24_692_352) * 1024);
     assert!(used <= total);
 }
 
 #[test]
-fn cpu_busy_percentage_from_jiffies_delta() {
-    // Mirrors read_cpu_busy(): busy% = 100*(dTotal - dIdle)/dTotal.
-    let d_total: u64 = 1000;
-    let d_idle: u64 = 250;
-    let busy = (100.0 * (d_total.saturating_sub(d_idle) as f64) / d_total as f64)
-        .round()
-        .clamp(0.0, 100.0) as u32;
-    assert_eq!(busy, 75);
-    let d_total0: u64 = 0;
-    let busy0 = if d_total0 == 0 { 0 } else { 1 };
-    assert_eq!(busy0, 0);
+fn meminfo_missing_fields_are_zero() {
+    let (total, used) = parse_meminfo("SomethingElse: 123 kB\n");
+    assert_eq!(total, 0);
+    assert_eq!(used, 0);
 }
 
 #[test]
 fn hwmon_millidegrees_convert_to_celsius() {
-    // hwmon reports milli-degrees C; daemon divides by 1000.
-    assert_eq!(71_250u64 / 1000, 71);
-    assert_eq!(57_000u64 / 1000, 57);
-    // Power: hwmon reports micro-watts; daemon converts uW -> mW.
-    assert_eq!(25_000_000u64 / 1000, 25_000);
+    assert_eq!(millidegrees_to_celsius(71_250), 71);
+    assert_eq!(millidegrees_to_celsius(57_000), 57);
+    assert_eq!(millidegrees_to_celsius(0), 0);
 }
 
 #[test]
-fn refresh_state_snapshot_is_clone_eq() {
-    // The D-Bus interface methods clone the underlying state under a
-    // mutex; a Default snapshot must round-trip via Clone with equal
-    // numeric fields. (We can't compare Strings cheaply across a real
-    // mutex, but the shape Eq test covers what wire callers see.)
-    let s = GpuStateShape::default();
-    let s2 = GpuStateShape {
-        ..GpuStateShape::default()
-    };
-    assert_eq!(s, s2);
+fn hwmon_microwatts_convert_to_milliwatts() {
+    assert_eq!(microwatts_to_milliwatts(25_000_000), 25_000);
+    assert_eq!(microwatts_to_milliwatts(999), 0); // sub-mW rounds down
 }
 
 #[tokio::test]
 #[ignore] // run with `cargo test -- --ignored` on a CUDA host
 async fn nvml_initializes_on_real_gpu() {
-    // Documentation test. On a real NVIDIA host:
-    //   1. `Nvml::init()` returns Ok and a device_count >= 1.
-    //   2. `device_by_index(0)` succeeds.
-    //   3. `device.name()`, `.utilization_rates()`, `.memory_info()`,
-    //      `.temperature(TemperatureSensor::Gpu)`, `.power_usage()` all
-    //      return Ok.
-    // We don't link nvml-wrapper from the test crate to keep the
-    // integration test fast in CI; this is a placeholder.
-    eprintln!(
-        "Run aurum-gpu-monitor against a real NVIDIA GPU and \
-               assert util/temp/power are plausible (>0 under load)."
-    );
+    // Documentation test for the NVML path. On a real NVIDIA host, Nvml::init()
+    // returns Ok with device_count >= 1 and device_by_index(0) succeeds with
+    // plausible util/temp/power. Not linkable without hardware in CI.
+    eprintln!("Run aurum-gpu-monitor on a real NVIDIA GPU; assert util/temp/power are plausible.");
 }

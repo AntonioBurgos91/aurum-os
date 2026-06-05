@@ -14,8 +14,7 @@
 //                 stats() -> (doc_count: t, last_indexed: x)
 // ==============================================================================
 
-mod index;
-mod watch;
+use spotlight_indexer::watch;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -24,8 +23,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use zbus::{connection::Builder, interface};
 
-use crate::index::{Hit, Indexer};
-use crate::watch::FsChange;
+use spotlight_indexer::index::{Hit, Indexer};
+use spotlight_indexer::watch::FsChange;
 
 fn default_roots() -> Vec<PathBuf> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));

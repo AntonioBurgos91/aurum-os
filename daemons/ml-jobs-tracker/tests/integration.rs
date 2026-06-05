@@ -1,14 +1,13 @@
 // =====================================================================
 // ml-jobs-tracker integration tests
 //
-// We pull in `src/mlflow.rs` via `#[path]` so we can exercise the REST
-// client (`Client`) and `RunSummary` parser against a `wiremock` fake
-// MLflow server, without exposing the module publicly from the binary.
+// We import the crate library (`ml_jobs_tracker::mlflow`) so we can
+// exercise the REST client (`Client`) and `RunSummary` parser against a
+// `wiremock` fake MLflow server. Importing the lib (vs #[path]) lets coverage
+// tooling attribute these tests back to src/mlflow.rs.
 // =====================================================================
 
-#[path = "../src/mlflow.rs"]
-mod mlflow;
-
+use ml_jobs_tracker::mlflow;
 use mlflow::Client;
 use serde_json::json;
 use wiremock::{

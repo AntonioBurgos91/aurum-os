@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Point Cloud Viewer
+GenericName=3D point cloud / computer vision
+Comment=View and segment 3D point-cloud scans (road defects, cars, buildings)
+TryExec=aurum-pointcloud-viewer
+Exec=aurum-pointcloud-viewer %F
+Icon=aurum-pointcloud-viewer
+Categories=Graphics;Viewer;
+MimeType=application/ply;
+Terminal=false
+StartupNotify=true
+Keywords=pointcloud;lidar;3d;segmentation;computervision;cv;scan;

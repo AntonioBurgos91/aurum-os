@@ -20,6 +20,12 @@ target_link_libraries(aurum-pointcloud-viewer PRIVATE pcv-core Qt6::Widgets Qt6:
 add_executable(pcv-render-offscreen src/render_offscreen.cpp)
 target_link_libraries(pcv-render-offscreen PRIVATE pcv-core Qt6::Gui)
 
+# Install the viewer + headless renderer into the system (used by the ISO build,
+# which runs `cmake --install`). CMAKE_INSTALL_PREFIX is /usr/local there.
+include(GNUInstallDirs)
+install(TARGETS aurum-pointcloud-viewer pcv-render-offscreen
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 if(BUILD_TESTS)
     enable_testing()
     find_package(Qt6 COMPONENTS Test REQUIRED)

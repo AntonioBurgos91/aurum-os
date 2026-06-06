@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=CV Training Studio
+GenericName=Point-cloud segmentation training
+Comment=Train a point-cloud semantic-segmentation model (PyTorch)
+TryExec=aurum-cv-train
+Exec=aurum-cv-train
+Icon=aurum-cv-train
+Categories=Development;
+Terminal=true
+StartupNotify=true
+Keywords=training;cv;computervision;pointcloud;pytorch;segmentation;ml;

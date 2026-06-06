@@ -355,6 +355,18 @@ customize_system() {
     cp "${BASE_DIR}/tools/aurum-update-apply"        "${CHROOT_DIR}/tmp/aurum/tools/" 2>/dev/null || true
     install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/polkit"
     cp "${BASE_DIR}/distro/polkit/org.aurumos.update.policy" "${CHROOT_DIR}/tmp/aurum/polkit/" 2>/dev/null || true
+    # CV training pipeline (point-cloud segmentation) — Python, installed
+    # system-wide so the "CV Training Studio" launcher can run it.
+    install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/cv-training"
+    cp "${BASE_DIR}"/apps/pointcloud-viewer/training/*.py \
+       "${CHROOT_DIR}/tmp/aurum/cv-training/" 2>/dev/null || true
+    cp "${BASE_DIR}/apps/pointcloud-viewer/training/aurum-cv-train" \
+       "${CHROOT_DIR}/tmp/aurum/cv-training/" 2>/dev/null || true
+    # App icons (256x256) for the menu/dock. Staged here and installed into the
+    # hicolor theme by chroot_setup so QIcon::fromTheme(<id>) resolves them.
+    install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/app-icons"
+    cp "${BASE_DIR}"/distro/assets/icons/*.png \
+       "${CHROOT_DIR}/tmp/aurum/app-icons/" 2>/dev/null || true
 
     # Stage system-wide .desktop entries for the menu / dock / spotlight.
     log_info "Staging system-wide application entries..."
@@ -375,6 +387,11 @@ customize_system() {
     rsync -a --delete \
         --exclude='build/' --exclude='target/' \
         "${BASE_DIR}/daemons/"  "${CHROOT_DIR}/tmp/aurum/daemons/"
+    # Native apps (the point-cloud viewer is a C++/Qt target built by the
+    # top-level CMake; its Python trainer is staged separately below).
+    rsync -a --delete \
+        --exclude='build/' --exclude='target/' --exclude='__pycache__/' \
+        "${BASE_DIR}/apps/"     "${CHROOT_DIR}/tmp/aurum/apps/"
     cp "${BASE_DIR}/CMakeLists.txt" "${CHROOT_DIR}/tmp/aurum/CMakeLists.txt"
 
     # Install systemd units shipped alongside daemons. user-level units live in
@@ -597,6 +614,41 @@ if [ -f /tmp/aurum/polkit/org.aurumos.update.policy ]; then
     install -d -m 0755 /usr/share/polkit-1/actions
     install -m 0644 /tmp/aurum/polkit/org.aurumos.update.policy \
         /usr/share/polkit-1/actions/org.aurumos.update.policy
+fi
+
+# --- CV training pipeline (point-cloud segmentation) -------------------------
+# Python modules go to a shared dir; aurum-cv-train launcher to PATH. The DL
+# stack (PyTorch + scikit-learn) is already installed by Phase 4.
+if [ -d /tmp/aurum/cv-training ]; then
+    install -d -m 0755 /usr/local/share/aurum-os/cv-training
+    install -m 0644 /tmp/aurum/cv-training/*.py /usr/local/share/aurum-os/cv-training/ 2>/dev/null || true
+    if [ -f /tmp/aurum/cv-training/aurum-cv-train ]; then
+        install -m 0755 /tmp/aurum/cv-training/aurum-cv-train /usr/local/bin/aurum-cv-train
+    fi
+fi
+
+# --- App icons → hicolor theme (so QIcon::fromTheme(<id>) resolves them) ------
+# Fixes icon resolution for every distro/applications/*.desktop entry.
+if [ -d /tmp/aurum/app-icons ]; then
+    install -d -m 0755 /usr/local/share/icons/hicolor/256x256/apps
+    install -m 0644 /tmp/aurum/app-icons/*.png \
+        /usr/local/share/icons/hicolor/256x256/apps/ 2>/dev/null || true
+    THEME=/usr/local/share/icons/hicolor/index.theme
+    if [ ! -f "$THEME" ]; then
+        cat > "$THEME" <<'ITHEME'
+[Icon Theme]
+Name=AurumOS
+Comment=AurumOS native icons
+Directories=256x256/apps
+
+[256x256/apps]
+Size=256
+Type=Fixed
+Context=Applications
+ITHEME
+    fi
+    command -v gtk-update-icon-cache >/dev/null 2>&1 && \
+        gtk-update-icon-cache -f -t /usr/local/share/icons/hicolor 2>/dev/null || true
 fi
 # Recipes go to a shared dir; user copies/symlinks into their projects.
 rsync -a /tmp/aurum/recipes/ /usr/local/share/aurum-os/recipes/

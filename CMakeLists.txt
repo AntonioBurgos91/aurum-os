@@ -49,6 +49,11 @@ if(BUILD_DESKTOP)
     add_subdirectory(desktop/settings)
     add_subdirectory(desktop/installer)
     add_subdirectory(desktop/coming-soon)
+    # Native apps shipped with the OS. Guarded so a partial checkout still
+    # configures the desktop.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps/pointcloud-viewer/CMakeLists.txt")
+        add_subdirectory(apps/pointcloud-viewer)
+    endif()
 endif()
 
 if(BUILD_TESTS)

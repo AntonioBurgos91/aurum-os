@@ -29,6 +29,25 @@ feed labels from a segmentation network (KPConv / RandLA-Net / PTv3, trained on
 SemanticKITTI-style data, served via TensorRT); the viewer consumes whatever
 labels the model emits.
 
+## In-app model training (computer vision)
+
+`training/` is a real, runnable point-cloud semantic-segmentation trainer:
+`cv_train.py` builds labelled street scenes, extracts geometric features, trains
+a PyTorch MLP, and evaluates on a HELD-OUT scene (different seed), reporting real
+accuracy + per-class IoU and writing the predicted scene as a PLY the viewer
+renders. Run: `python3 training/cv_train.py` (or the `aurum-cv-train` launcher).
+
+Verified run (CPU, 60 epochs, ~9s): loss 1.57 -> 0.02; on the unseen scene
+99.0% overall / 97.6% mean IoU.
+
+IMPORTANT — read before quoting those numbers: the scenes are SYNTHETIC and
+clean, and train/test come from the same generator, so accuracy is far higher
+than real scanner data would give (real point-cloud segmentation is typically
+60-85% mIoU). This proves the *training pipeline and the in-app flow*
+(features -> model -> evaluation -> rendered predictions), NOT production
+accuracy. The architecture swaps the MLP for a GPU deep net (PointNet/KPConv/
+PTv3) and the synthetic scenes for real labelled scans when those exist.
+
 ## Status
 PROTOTYPE. Verified: compiles, 4 unit tests pass, renders 360k synthetic points
 headless. NOT yet done: ingest of real scanner formats (LAS/E57), GPU-accelerated

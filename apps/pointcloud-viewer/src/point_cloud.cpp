@@ -5,6 +5,7 @@
 #include <fstream>
 #include <random>
 #include <sstream>
+#include <vector>
 
 namespace aurum::pcv {
 
@@ -72,9 +73,9 @@ bool load_ply(PointCloud &pc, const std::string &path) {
     return false;
   std::string line;
   std::size_t count = 0;
-  bool have_defect = false;
-  int prop_index = 0, defect_at = -1;
-  // Header.
+  // Track property order so we can read x,y,z plus optional defect/label in any
+  // column position (the trainer writes "x y z defect label").
+  int prop_index = 0, defect_at = -1, label_at = -1, n_props = 0;
   while (std::getline(f, line)) {
     std::istringstream ls(line);
     std::string tok;
@@ -85,11 +86,12 @@ bool load_ply(PointCloud &pc, const std::string &path) {
     } else if (tok == "property") {
       std::string type, name;
       ls >> type >> name;
-      if (name == "defect") {
-        have_defect = true;
+      if (name == "defect")
         defect_at = prop_index;
-      }
+      else if (name == "label")
+        label_at = prop_index;
       ++prop_index;
+      ++n_props;
     } else if (tok == "end_header") {
       break;
     }
@@ -98,16 +100,24 @@ bool load_ply(PointCloud &pc, const std::string &path) {
   pc.reserve(count);
   for (std::size_t i = 0; i < count && std::getline(f, line); ++i) {
     std::istringstream ls(line);
-    float x = 0, y = 0, z = 0, d = 0;
-    ls >> x >> y >> z;
-    if (have_defect && defect_at >= 3) {
-      for (int j = 3; j < defect_at; ++j) {
-        float skip;
-        ls >> skip;
-      }
-      ls >> d;
+    // Read every column of the row into a buffer, then pick out what we need.
+    std::vector<float> col;
+    col.reserve(n_props);
+    float v;
+    while (ls >> v)
+      col.push_back(v);
+    if (col.size() < 3)
+      continue;
+    const float x = col[0], y = col[1], z = col[2];
+    const float d =
+        (defect_at >= 0 && defect_at < (int)col.size()) ? col[defect_at] : 0.0f;
+    SemClass cls = SemClass::Unlabeled;
+    if (label_at >= 0 && label_at < (int)col.size()) {
+      const int li = static_cast<int>(col[label_at]);
+      if (li > 0 && li < static_cast<int>(SemClass::Count))
+        cls = static_cast<SemClass>(li);
     }
-    pc.push(x, y, z, d);
+    pc.push(x, y, z, d, cls);
   }
   return true;
 }

@@ -3,13 +3,20 @@
 # Note: CUDA/cuDNN/TensorRT require NVIDIA developer repo (added by build.sh)
 
 # --- GPU Runtimes (NVIDIA repo) ---
-cuda-toolkit-12-6
+# CUDA 12.8 is the FLOOR for Blackwell (RTX 50-series, sm_120). 12.6 predates
+# Blackwell and yields "no kernel image available" on those GPUs.
+cuda-toolkit-12-8
 libcudnn9-cuda-12
 libcudnn9-dev-cuda-12
 libnccl2
 libnccl-dev
 tensorrt
 tensorrt-dev
+# Blackwell needs an R570+ driver. The debootstrap Ubuntu base ships no NVIDIA
+# driver, so pull the CUDA-repo metapackage (installs the matching driver).
+# NOTE: driver install on a live ISO needs real-hardware validation (DKMS +
+# initramfs); verified to apt-resolve, not yet boot-tested on a Blackwell card.
+cuda-drivers
 
 # --- GPU Monitoring ---
 nvtop

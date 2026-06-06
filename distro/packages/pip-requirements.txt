@@ -19,6 +19,9 @@ scikit-learn
 # `torch==2.5.1` (Oct 2024) was the previous pin but breaks resolution on
 # Python 3.13 because no torchvision in the cp313 ABI lineage pairs with it.
 # Float to ≥2.7 — the first version with a clean cp313 + torchvision pairing.
+# On CUDA hosts the installer (02-install-dl-stack.sh) pulls torch from the
+# cu128 index so Blackwell (RTX 50-series, sm_120) gets working kernels. The
+# version floor below still applies; the index just selects the CUDA build.
 torch>=2.7,<3
 torchvision
 torchaudio

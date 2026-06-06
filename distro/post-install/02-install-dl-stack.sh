@@ -102,8 +102,29 @@ install_packages() {
     else
         log "uv: cache enabled (UV_NO_CACHE=0; CI/dev mode)"
     fi
+
+    # --- Blackwell / CUDA wheel selection ------------------------------------
+    # The default PyPI torch wheel does NOT carry sm_120 kernels, so on a
+    # Blackwell card (RTX 50-series) it fails at runtime with "no kernel image
+    # available for execution on the device". On a CUDA host we make PyTorch's
+    # cu128 index the PRIMARY index (it carries sm_120 wheels for torch/
+    # torchvision/torchaudio) and PyPI the EXTRA index for everything else. uv's
+    # default first-match strategy takes the torch family from cu128 and every
+    # other package from PyPI in a single, conflict-free resolution. Override
+    # the channel with AURUM_TORCH_CHANNEL (e.g. cu129) for a newer CUDA.
+    local index_flags=""
+    if [[ "${AURUM_HAS_CUDA:-0}" == "1" ]]; then
+        local torch_channel="${AURUM_TORCH_CHANNEL:-cu128}"
+        # Build any source CUDA extensions for Blackwell (sm_120) + common prior
+        # arches so a mixed GPU fleet still works.
+        export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.9;9.0;12.0}"
+        index_flags="--index-url https://download.pytorch.org/whl/${torch_channel} --extra-index-url https://pypi.org/simple"
+        log "CUDA host → torch wheels from ${torch_channel} (Blackwell sm_120); arch=${TORCH_CUDA_ARCH_LIST}"
+    fi
+
     uv pip install --python "${VENV_PATH}/bin/python" \
                    ${cache_flag} \
+                   ${index_flags} \
                    -r "${PIP_REQS}"
 
     # Sanity-check the resulting venv. vllm / triton / bitsandbytes are

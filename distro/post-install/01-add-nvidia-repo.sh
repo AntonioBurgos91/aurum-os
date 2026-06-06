@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Adds NVIDIA developer repo for CUDA 12.6, cuDNN, TensorRT, NCCL
+# Adds NVIDIA developer repo for CUDA 12.8+, cuDNN, TensorRT, NCCL (Blackwell-ready)
 # Run inside chroot during ISO build, before apt-get install -y < dl.list
 set -euo pipefail
 

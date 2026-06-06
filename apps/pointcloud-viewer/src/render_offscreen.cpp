@@ -37,6 +37,16 @@ int main(int argc, char *argv[]) {
     }
     mode = GLRenderer::ColorMode::Class;
   }
+  // If the cloud carries no semantic labels (e.g. an error map), fall back to
+  // defect colouring so it renders meaningfully instead of all-grey.
+  bool anyLabel = false;
+  for (uint8_t l : pc.label)
+    if (l > 0) {
+      anyLabel = true;
+      break;
+    }
+  if (!anyLabel)
+    mode = GLRenderer::ColorMode::Defect;
   std::fprintf(stderr, "points: %zu\n", pc.size());
   if (!pc.label.empty()) {
     const auto h = class_histogram(pc);

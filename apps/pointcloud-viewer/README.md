@@ -37,8 +37,13 @@ a PyTorch MLP, and evaluates on a HELD-OUT scene (different seed), reporting rea
 accuracy + per-class IoU and writing the predicted scene as a PLY the viewer
 renders. Run: `python3 training/cv_train.py` (or the `aurum-cv-train` launcher).
 
-Verified run (CPU, 60 epochs, ~9s): loss 1.57 -> 0.02; on the unseen scene
-99.0% overall / 97.6% mean IoU.
+Verified run (CPU, 60 epochs, ~10s) on a REALISTIC mini case — the dense scene
+is turned into a simulated LiDAR scan (occlusion shadows, density falloff with
+range, 3 cm sensor noise), confusers are added (low hedges that resemble cars,
+garden walls that resemble buildings), 3% label noise is injected into training,
+and the test scene has a DIFFERENT layout: 98.6% overall / 92.3% mean IoU, with
+poles the hard class at 72% (thin + rare, exactly as in real data). The trainer
+also writes a confusion matrix and an error map (misclassified points in red).
 
 IMPORTANT — read before quoting those numbers: the scenes are SYNTHETIC and
 clean, and train/test come from the same generator, so accuracy is far higher

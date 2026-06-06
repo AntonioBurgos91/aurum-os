@@ -106,6 +106,34 @@ def generate_city_scene(length_m=50, width_m=16, seed=7):
                                  rng.uniform(0, 5.0, n)]), POLE)
             px0 += 18.0
 
+    # --- CONFUSERS (make the problem realistic) ---
+    # Low hedges along the sidewalk: blobby + low, geometrically close to cars
+    # and to vegetation -> a genuine source of confusion (labelled VEGETATION).
+    for side in (-1, 1):
+        hx = 6.0
+        while hx < length_m:
+            if rng.random() < 0.5:
+                L = rng.uniform(2.0, 4.0)
+                hy = side * (road_half + walk_w + 0.2)
+                n = 1500
+                add(np.column_stack([hx + rng.uniform(0, L, n),
+                                     hy + rng.normal(0, 0.25, n),
+                                     rng.uniform(0, 0.9, n)]), VEGETATION)
+            hx += rng.uniform(7, 12)
+    # Low garden walls at the building line: short vertical slabs, easy to
+    # confuse with building bases / cars (labelled BUILDING).
+    for side in (-1, 1):
+        wx = 4.0
+        while wx < length_m:
+            if rng.random() < 0.4:
+                L = rng.uniform(3.0, 6.0)
+                wy = side * (road_half + walk_w + 0.1)
+                n = 1200
+                add(np.column_stack([wx + rng.uniform(0, L, n),
+                                     wy + rng.normal(0, 0.08, n),
+                                     rng.uniform(0, 1.0, n)]), BUILDING)
+            wx += rng.uniform(8, 14)
+
     P = np.vstack(pts).astype(np.float32)
     L = np.concatenate(lbl).astype(np.int64)
     return P, L
@@ -159,3 +187,61 @@ def save_ply_labeled(P, labels, path):
         f.write("end_header\n")
         for (x, y, z), l in zip(P, labels):
             f.write(f"{x} {y} {z} 0 {int(l)}\n")
+
+
+# ── Realistic LiDAR scan simulation ─────────────────────────────────────────
+# The dense scene above is the "ground-truth world". A real mobile scanner only
+# captures what its beams hit: occlusion (shadows behind cars/trees), density
+# that falls with range, and per-point noise. simulate_lidar_scan() reproduces
+# this with angular binning from scanner positions along the street — the same
+# physics a 360° LiDAR obeys — turning the clean world into a realistic,
+# hard-to-segment scan. This is what makes the mini case "real".
+
+def simulate_lidar_scan(P, L, length_m=50, az_res_deg=0.45, el_res_deg=0.9,
+                        noise_m=0.02, seed=0):
+    rng = np.random.default_rng(seed)
+    # Scanner trajectory: down the street centreline at 1.6 m height, every 3 m.
+    origins = [np.array([x, 0.0, 1.6], np.float32)
+               for x in np.arange(3.0, length_m, 6.0)]
+    az_res = np.deg2rad(az_res_deg)
+    el_res = np.deg2rad(el_res_deg)
+    keep_mask = np.zeros(len(P), dtype=bool)
+
+    for o in origins:
+        vec = P - o
+        rng_d = np.linalg.norm(vec, axis=1)
+        good = rng_d > 0.2
+        az = np.arctan2(vec[:, 1], vec[:, 0])
+        el = np.arcsin(np.clip(vec[:, 2] / np.maximum(rng_d, 1e-6), -1, 1))
+        az_bin = np.round(az / az_res).astype(np.int64)
+        el_bin = np.round(el / el_res).astype(np.int64)
+        # Only points within a sensible range of this scan position.
+        good &= rng_d < 22.0
+        idx = np.where(good)[0]
+        if len(idx) == 0:
+            continue
+        key = az_bin[idx].astype(np.int64) * 100000 + el_bin[idx]
+        order = np.lexsort((rng_d[idx], key))  # by bin, then nearest range
+        ks = key[order]
+        first = np.ones(len(ks), bool)
+        first[1:] = ks[1:] != ks[:-1]
+        keep_mask[idx[order[first]]] = True  # nearest point per angular bin
+
+    Pk = P[keep_mask].copy()
+    Lk = L[keep_mask].copy()
+    # Per-point sensor noise (range/beam jitter).
+    Pk += rng.normal(0, noise_m, Pk.shape).astype(np.float32)
+    return Pk, Lk
+
+
+def generate_scanned_scene(seed=7, hard=False):
+    """A full ground-truth world, then a realistic LiDAR scan of it."""
+    # 'hard' varies layout so the test scene differs from training in geometry.
+    length = 60 if hard else 50
+    width = 18 if hard else 16
+    P, L = generate_city_scene(length_m=length, width_m=width, seed=seed)
+    Ps, Ls = simulate_lidar_scan(P, L, length_m=length,
+                                 az_res_deg=1.1 if hard else 1.0,
+                                 el_res_deg=1.8 if hard else 1.6,
+                                 noise_m=0.035 if hard else 0.03, seed=seed)
+    return Ps, Ls

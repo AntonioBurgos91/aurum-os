@@ -43,24 +43,32 @@ class PointMLP(nn.Module):
         return self.net(x)
 
 
-def build_split(seeds):
-    """Features + labels for a list of scene seeds, concatenated."""
+def build_split(seeds, hard=False):
+    """Features + labels from realistic LiDAR scans of the given scenes."""
     Xs, ys = [], []
     for s in seeds:
-        P, L = ds.generate_city_scene(seed=s)
-        # Subsample for speed/balance (cap per scene).
-        if len(P) > 60000:
-            sel = np.random.default_rng(s).choice(len(P), 60000, replace=False)
-            P, L = P[sel], L[sel]
+        P, L = ds.generate_scanned_scene(seed=s, hard=hard)
         F = ds.extract_features(P)
         Xs.append(F); ys.append(L)
-    return np.vstack(Xs), np.concatenate(ys)
+    return np.vstack(Xs), np.concatenate(ys), P, L
 
 
 def remap(labels):
     """Map SemClass ids -> contiguous 0..C-1 for the loss."""
     to_idx = {c: i for i, c in enumerate(ds.CLASSES)}
     return np.array([to_idx[l] for l in labels], dtype=np.int64)
+
+
+def save_ply_errormap(P, wrong, path):
+    """PLY whose defect=1 marks misclassified points (red in the viewer)."""
+    with open(path, "w") as f:
+        f.write("ply\nformat ascii 1.0\n")
+        f.write(f"element vertex {len(P)}\n")
+        f.write("property float x\nproperty float y\nproperty float z\n")
+        f.write("property float defect\n")
+        f.write("end_header\n")
+        for (x, y, z), w in zip(P, wrong):
+            f.write(f"{x} {y} {z} {float(w)}\n")
 
 
 def main():
@@ -71,10 +79,16 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     torch.manual_seed(0); np.random.seed(0)
 
-    print("[cv-train] building training scenes (seeds 1-4)...", flush=True)
-    Xtr, ytr = build_split([1, 2, 3, 4])
-    print(f"[cv-train] building HELD-OUT test scene (seed 99)...", flush=True)
-    Xte, yte = build_split([99])
+    print("[cv-train] scanning training scenes (LiDAR sim, seeds 1-4)...", flush=True)
+    Xtr, ytr, _, _ = build_split([1, 2, 3, 4])
+    # Real annotated data has label noise; flip ~3% of training labels to a
+    # random class to simulate imperfect human annotation.
+    rng_ln = np.random.default_rng(123)
+    flip = rng_ln.random(len(ytr)) < 0.03
+    ytr = ytr.copy()
+    ytr[flip] = rng_ln.choice(ds.CLASSES, size=int(flip.sum()))
+    print("[cv-train] scanning HELD-OUT test scene (seed 99, different layout)...", flush=True)
+    Xte, yte, Pte, Lte = build_split([99], hard=True)
 
     # Standardise features on train stats.
     mu, sd = Xtr.mean(0), Xtr.std(0) + 1e-6
@@ -137,12 +151,24 @@ def main():
 
     # Save model + the predicted test scene (for the viewer).
     torch.save({"state": model.state_dict(), "mu": mu, "sd": sd}, f"{args.out}/model.pt")
-    Pte, _ = ds.generate_city_scene(seed=99)
-    if len(Pte) > 60000:
-        sel = np.random.default_rng(99).choice(len(Pte), 60000, replace=False)
-        Pte = Pte[sel]
     ds.save_ply_labeled(Pte, pred_cls, f"{args.out}/pred_scene.ply")
     ds.save_ply_labeled(Pte, yte, f"{args.out}/truth_scene.ply")
+    # Error map: defect=1 where the prediction is WRONG (renders red), else 0.
+    wrong = (pred != yte_i).astype(np.float32)
+    save_ply_errormap(Pte, wrong, f"{args.out}/error_scene.ply")
+    # Confusion matrix.
+    C = len(ds.CLASSES)
+    cm = np.zeros((C, C), dtype=np.int64)
+    for t, pr in zip(yte_i, pred):
+        cm[t, pr] += 1
+    print("\n[cv-train] confusion matrix (filas=verdad, col=predicho):")
+    names = [ds.CLASS_NAMES[c][:5] for c in ds.CLASSES]
+    print("            " + " ".join(f"{n:>6s}" for n in names))
+    for i, n in enumerate(names):
+        row = " ".join(f"{cm[i,j]:6d}" for j in range(C))
+        print(f"    {n:>6s}  {row}")
+    json.dump({"confusion": cm.tolist(), "classes": [ds.CLASS_NAMES[c] for c in ds.CLASSES]},
+              open(f"{args.out}/confusion.json", "w"), indent=2)
     json.dump({"overall": overall, "miou": miou, "iou": ious, "loss": history},
               open(f"{args.out}/metrics.json", "w"), indent=2)
     print(f"[cv-train] saved model + pred_scene.ply + truth_scene.ply to {args.out}")

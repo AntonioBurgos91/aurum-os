@@ -1,0 +1,179 @@
+#include "point_cloud.h"
+
+#include <algorithm>
+#include <cmath>
+#include <fstream>
+#include <random>
+#include <sstream>
+
+namespace aurum::pcv {
+
+Bounds compute_bounds(const PointCloud &pc) {
+  Bounds b;
+  if (pc.size() == 0)
+    return b;
+  for (int k = 0; k < 3; ++k) {
+    b.min[k] = b.max[k] = pc.xyz[k];
+  }
+  for (std::size_t i = 0; i < pc.size(); ++i) {
+    for (int k = 0; k < 3; ++k) {
+      const float v = pc.xyz[3 * i + k];
+      b.min[k] = std::min(b.min[k], v);
+      b.max[k] = std::max(b.max[k], v);
+    }
+  }
+  float r2 = 0.0f;
+  for (int k = 0; k < 3; ++k) {
+    b.center[k] = 0.5f * (b.min[k] + b.max[k]);
+    const float half = 0.5f * (b.max[k] - b.min[k]);
+    r2 += half * half;
+  }
+  b.radius = std::sqrt(r2);
+  if (b.radius < 1e-3f)
+    b.radius = 1.0f;
+  return b;
+}
+
+void defect_color(float score, float &r, float &g, float &b) {
+  // Clamp, then green(0) -> yellow(0.5) -> red(1.0).
+  score = std::clamp(score, 0.0f, 1.0f);
+  if (score < 0.5f) {
+    const float t = score / 0.5f; // 0..1 over green->yellow
+    r = t;
+    g = 1.0f;
+    b = 0.0f;
+  } else {
+    const float t = (score - 0.5f) / 0.5f; // 0..1 over yellow->red
+    r = 1.0f;
+    g = 1.0f - t;
+    b = 0.0f;
+  }
+}
+
+bool save_ply(const PointCloud &pc, const std::string &path) {
+  std::ofstream f(path);
+  if (!f)
+    return false;
+  f << "ply\nformat ascii 1.0\n";
+  f << "element vertex " << pc.size() << "\n";
+  f << "property float x\nproperty float y\nproperty float z\n";
+  f << "property float defect\n";
+  f << "end_header\n";
+  for (std::size_t i = 0; i < pc.size(); ++i) {
+    f << pc.xyz[3 * i] << " " << pc.xyz[3 * i + 1] << " " << pc.xyz[3 * i + 2]
+      << " " << pc.defect[i] << "\n";
+  }
+  return static_cast<bool>(f);
+}
+
+bool load_ply(PointCloud &pc, const std::string &path) {
+  std::ifstream f(path);
+  if (!f)
+    return false;
+  std::string line;
+  std::size_t count = 0;
+  bool have_defect = false;
+  int prop_index = 0, defect_at = -1;
+  // Header.
+  while (std::getline(f, line)) {
+    std::istringstream ls(line);
+    std::string tok;
+    ls >> tok;
+    if (tok == "element") {
+      std::string what;
+      ls >> what >> count;
+    } else if (tok == "property") {
+      std::string type, name;
+      ls >> type >> name;
+      if (name == "defect") {
+        have_defect = true;
+        defect_at = prop_index;
+      }
+      ++prop_index;
+    } else if (tok == "end_header") {
+      break;
+    }
+  }
+  pc.clear();
+  pc.reserve(count);
+  for (std::size_t i = 0; i < count && std::getline(f, line); ++i) {
+    std::istringstream ls(line);
+    float x = 0, y = 0, z = 0, d = 0;
+    ls >> x >> y >> z;
+    if (have_defect && defect_at >= 3) {
+      for (int j = 3; j < defect_at; ++j) {
+        float skip;
+        ls >> skip;
+      }
+      ls >> d;
+    }
+    pc.push(x, y, z, d);
+  }
+  return true;
+}
+
+PointCloud generate_road_scan(int length_m, int width_m, float density_per_m2,
+                              uint32_t seed) {
+  PointCloud pc;
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<float> ux(0.0f, static_cast<float>(length_m));
+  std::uniform_real_distribution<float> uy(-width_m * 0.5f, width_m * 0.5f);
+  std::normal_distribution<float> surf_noise(0.0f,
+                                             0.004f); // 4mm asphalt roughness
+
+  // A few potholes (cx, cy, radius, depth) and cracks (x0,y0,x1,y1,depth).
+  struct Pot {
+    float cx, cy, r, depth;
+  };
+  struct Crack {
+    float x0, y0, x1, y1, depth;
+  };
+  const Pot pots[] = {
+      {8.0f, -1.2f, 0.55f, 0.09f},
+      {22.0f, 1.0f, 0.8f, 0.14f},
+      {31.0f, -0.4f, 0.4f, 0.06f},
+  };
+  const Crack cracks[] = {
+      {3.0f, 2.0f, 14.0f, -2.2f, 0.05f},
+      {18.0f, -2.5f, 27.0f, 2.4f, 0.04f},
+      {25.0f, 0.0f, 38.0f, 0.8f, 0.06f},
+  };
+
+  const auto total =
+      static_cast<std::size_t>(length_m * width_m * density_per_m2);
+  pc.reserve(total);
+
+  for (std::size_t i = 0; i < total; ++i) {
+    const float x = ux(rng);
+    const float y = uy(rng);
+    float z = surf_noise(rng); // base asphalt height
+    float defect = 0.0f;
+
+    // Potholes: gaussian bowls.
+    for (const auto &p : pots) {
+      const float dx = x - p.cx, dy = y - p.cy;
+      const float d2 = dx * dx + dy * dy;
+      const float infl = std::exp(-d2 / (2.0f * p.r * p.r));
+      z -= p.depth * infl;
+      defect = std::max(defect, infl * std::clamp(p.depth / 0.12f, 0.0f, 1.0f));
+    }
+    // Cracks: distance to a segment, thin influence.
+    for (const auto &c : cracks) {
+      const float vx = c.x1 - c.x0, vy = c.y1 - c.y0;
+      const float wx = x - c.x0, wy = y - c.y0;
+      const float len2 = vx * vx + vy * vy;
+      float t = len2 > 0 ? (wx * vx + wy * vy) / len2 : 0.0f;
+      t = std::clamp(t, 0.0f, 1.0f);
+      const float px = c.x0 + t * vx, py = c.y0 + t * vy;
+      const float dd = std::hypot(x - px, y - py);
+      const float infl =
+          std::exp(-(dd * dd) / (2.0f * 0.05f * 0.05f)); // ~5cm wide
+      z -= c.depth * infl;
+      defect = std::max(defect, infl * 0.85f);
+    }
+    pc.push(x, y, z, defect);
+  }
+  return pc;
+}
+
+} // namespace aurum::pcv

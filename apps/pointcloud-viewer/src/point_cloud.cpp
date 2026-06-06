@@ -176,4 +176,183 @@ PointCloud generate_road_scan(int length_m, int width_m, float density_per_m2,
   return pc;
 }
 
+// ── Semantic class helpers ──────────────────────────────────────────────────
+
+const char *sem_class_name(SemClass c) {
+  switch (c) {
+  case SemClass::Ground:
+    return "Suelo";
+  case SemClass::Sidewalk:
+    return "Acera";
+  case SemClass::Building:
+    return "Edificio";
+  case SemClass::Vegetation:
+    return "Vegetacion";
+  case SemClass::Car:
+    return "Coche";
+  case SemClass::Pole:
+    return "Poste";
+  case SemClass::Unlabeled:
+  default:
+    return "Sin clasificar";
+  }
+}
+
+void class_color(SemClass c, float &r, float &g, float &b) {
+  // A distinct, readable palette (SemanticKITTI-ish).
+  switch (c) {
+  case SemClass::Ground:
+    r = 0.40f;
+    g = 0.40f;
+    b = 0.45f;
+    break; // grey asphalt
+  case SemClass::Sidewalk:
+    r = 0.65f;
+    g = 0.62f;
+    b = 0.55f;
+    break; // tan
+  case SemClass::Building:
+    r = 0.90f;
+    g = 0.55f;
+    b = 0.25f;
+    break; // orange
+  case SemClass::Vegetation:
+    r = 0.20f;
+    g = 0.75f;
+    b = 0.30f;
+    break; // green
+  case SemClass::Car:
+    r = 0.20f;
+    g = 0.55f;
+    b = 0.95f;
+    break; // blue
+  case SemClass::Pole:
+    r = 0.95f;
+    g = 0.85f;
+    b = 0.20f;
+    break; // yellow
+  case SemClass::Unlabeled:
+  default:
+    r = 0.30f;
+    g = 0.30f;
+    b = 0.32f;
+    break;
+  }
+}
+
+std::vector<std::size_t> class_histogram(const PointCloud &pc) {
+  std::vector<std::size_t> h(static_cast<std::size_t>(SemClass::Count), 0);
+  for (uint8_t l : pc.label) {
+    if (l < h.size())
+      ++h[l];
+  }
+  return h;
+}
+
+PointCloud generate_city_scene(int length_m, int width_m, uint32_t seed) {
+  PointCloud pc;
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<float> u01(0.0f, 1.0f);
+  std::normal_distribution<float> jitter(0.0f, 0.01f);
+
+  const float halfW = width_m * 0.5f;
+  const float roadHalf = 4.0f; // 8m carriageway
+  const float walkW = 2.0f;    // sidewalk width each side
+
+  auto rx = [&]() { return u01(rng) * length_m; };
+
+  // 1. Ground (road) + sidewalks: dense flat sampling.
+  const int groundPts = length_m * width_m * 120;
+  for (int i = 0; i < groundPts; ++i) {
+    const float x = rx();
+    const float y = (u01(rng) * 2.0f - 1.0f) * halfW;
+    const float z = jitter(rng);
+    const float ay = std::fabs(y);
+    SemClass cls;
+    float zz = z;
+    if (ay <= roadHalf) {
+      cls = SemClass::Ground;
+    } else if (ay <= roadHalf + walkW) {
+      cls = SemClass::Sidewalk;
+      zz = z + 0.12f; // kerb step up
+    } else {
+      continue; // beyond sidewalk handled by buildings below
+    }
+    pc.push(x, y, zz, 0.0f, cls);
+  }
+
+  // 2. Buildings: facades along both sides beyond the sidewalk.
+  const float facadeY = roadHalf + walkW;
+  for (int side = -1; side <= 1; side += 2) {
+    float x = 0.0f;
+    while (x < length_m) {
+      const float bw = 6.0f + u01(rng) * 8.0f;  // building width along street
+      const float bh = 6.0f + u01(rng) * 14.0f; // height
+      const float depth = 0.4f;                 // facade thickness sampled
+      const int n = static_cast<int>(bw * bh * 40);
+      for (int i = 0; i < n; ++i) {
+        const float bx = x + u01(rng) * bw;
+        const float by = side * (facadeY + u01(rng) * depth);
+        const float bz = u01(rng) * bh;
+        pc.push(bx, by, bz, 0.0f, SemClass::Building);
+      }
+      x += bw + (0.5f + u01(rng) * 1.5f); // gap between buildings
+    }
+  }
+
+  // 3. Parked cars along the kerb (boxes), both sides.
+  struct Box {
+    float cx, cy, L, W, H;
+  };
+  for (int side = -1; side <= 1; side += 2) {
+    float x = 5.0f;
+    while (x < length_m - 5.0f) {
+      if (u01(rng) < 0.6f) {
+        const float L = 4.2f, W = 1.8f, H = 1.45f;
+        const float cy = side * (roadHalf - 1.0f);
+        const int n = 2500;
+        for (int i = 0; i < n; ++i) {
+          const float lx = x + u01(rng) * L;
+          const float ly = cy + (u01(rng) - 0.5f) * W;
+          const float lz = 0.2f + u01(rng) * H;
+          pc.push(lx, ly, lz, 0.0f, SemClass::Car);
+        }
+      }
+      x += 6.0f + u01(rng) * 4.0f;
+    }
+  }
+
+  // 4. Street trees (sphere canopy + trunk) on the sidewalk.
+  for (int side = -1; side <= 1; side += 2) {
+    for (float x = 8.0f; x < length_m; x += 12.0f + u01(rng) * 6.0f) {
+      const float ty = side * (roadHalf + walkW * 0.5f);
+      // trunk
+      for (int i = 0; i < 300; ++i)
+        pc.push(x + jitter(rng), ty + jitter(rng), u01(rng) * 2.2f, 0.0f,
+                SemClass::Vegetation);
+      // canopy
+      const float cz = 3.0f, cr = 1.6f;
+      for (int i = 0; i < 2500; ++i) {
+        const float a = u01(rng) * 6.2832f, e = (u01(rng) - 0.5f) * 3.14159f,
+                    rr = cr * std::cbrt(u01(rng));
+        pc.push(x + rr * std::cos(a) * std::cos(e),
+                ty + rr * std::sin(a) * std::cos(e), cz + rr * std::sin(e),
+                0.0f, SemClass::Vegetation);
+      }
+    }
+  }
+
+  // 5. Lamp posts on the sidewalk.
+  for (int side = -1; side <= 1; side += 2) {
+    for (float x = 14.0f; x < length_m; x += 18.0f) {
+      const float py = side * (roadHalf + walkW * 0.8f);
+      for (int i = 0; i < 400; ++i)
+        pc.push(x + jitter(rng), py + jitter(rng), u01(rng) * 5.0f, 0.0f,
+                SemClass::Pole);
+    }
+  }
+
+  return pc;
+}
+
 } // namespace aurum::pcv

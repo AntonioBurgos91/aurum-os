@@ -1,7 +1,7 @@
 // render_offscreen — headless proof that the native viewer renders. Generates
-// (or loads) a road scan, renders it to an off-screen framebuffer with an orbit
-// camera, and writes a PNG. Used to validate the pipeline in CI / on servers
-// with no display. Usage: render_offscreen <out.png> [in.ply]
+// a scene (road-defect or semantic city) or loads a PLY, renders it to an
+// off-screen framebuffer, and writes a PNG. For CI / servers with no display.
+// Usage: render_offscreen <out.png> [road|city|<in.ply>]
 #include <QGuiApplication>
 #include <QImage>
 #include <QMatrix4x4>
@@ -21,15 +21,29 @@ int main(int argc, char *argv[]) {
   const QString out = argc > 1 ? argv[1] : "pointcloud.png";
 
   PointCloud pc;
-  if (argc > 2) {
+  GLRenderer::ColorMode mode = GLRenderer::ColorMode::Defect;
+  const QString arg =
+      argc > 2 ? QString::fromUtf8(argv[2]) : QStringLiteral("road");
+  if (arg == "road") {
+    pc = generate_road_scan();
+    mode = GLRenderer::ColorMode::Defect;
+  } else if (arg == "city") {
+    pc = generate_city_scene();
+    mode = GLRenderer::ColorMode::Class;
+  } else {
     if (!load_ply(pc, argv[2])) {
       std::fprintf(stderr, "failed to load %s\n", argv[2]);
       return 2;
     }
-  } else {
-    pc = generate_road_scan();
+    mode = GLRenderer::ColorMode::Class;
   }
   std::fprintf(stderr, "points: %zu\n", pc.size());
+  if (!pc.label.empty()) {
+    const auto h = class_histogram(pc);
+    for (std::size_t i = 1; i < h.size(); ++i)
+      std::fprintf(stderr, "  %-14s %zu\n",
+                   sem_class_name(static_cast<SemClass>(i)), h[i]);
+  }
 
   QSurfaceFormat fmt;
   fmt.setRenderableType(QSurfaceFormat::OpenGL);
@@ -57,15 +71,15 @@ int main(int argc, char *argv[]) {
 
   GLRenderer r;
   r.init();
-  r.upload(pc);
+  r.upload(pc, mode);
   const Bounds b = r.bounds();
 
-  // Orbit camera: look down at the road strip from an angle.
   QMatrix4x4 proj;
   proj.perspective(45.0f, static_cast<float>(W) / H, 0.05f, 1000.0f);
   QMatrix4x4 view;
   const float dist = b.radius * 1.15f;
-  // Lower, three-quarter angle so the potholes read as real depressions.
+  // Lower, three-quarter angle: potholes read as depressions, a city scene
+  // reads as a street receding into the distance.
   view.lookAt(
       QVector3D(b.center[0] - dist * 0.7f, b.center[1] - dist * 0.9f,
                 b.center[2] + dist * 0.35f),

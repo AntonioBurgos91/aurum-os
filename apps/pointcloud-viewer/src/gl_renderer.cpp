@@ -5,35 +5,30 @@
 namespace aurum::pcv {
 
 namespace {
-// Interleaved layout per point: x,y,z,defect (4 floats).
-constexpr int kStride = 4 * sizeof(float);
+// Interleaved layout per point: x,y,z, r,g,b (6 floats). Colour is computed on
+// the CPU (by defect or by class) so the same shader serves both modes.
+constexpr int kStride = 6 * sizeof(float);
 
 const char *kVert = R"(#version 330 core
 layout(location=0) in vec3 inPos;
-layout(location=1) in float inDefect;
+layout(location=1) in vec3 inColor;
 uniform mat4 uMVP;
 uniform float uPointSize;
-out float vDefect;
+out vec3 vColor;
 void main() {
-    vDefect = inDefect;
+    vColor = inColor;
     gl_Position = uMVP * vec4(inPos, 1.0);
     gl_PointSize = uPointSize;
 }
 )";
 
-// Same green->yellow->red mapping as defect_color(), on the GPU.
 const char *kFrag = R"(#version 330 core
-in float vDefect;
+in vec3 vColor;
 out vec4 fragColor;
 void main() {
-    float s = clamp(vDefect, 0.0, 1.0);
-    vec3 c;
-    if (s < 0.5) { c = vec3(s / 0.5, 1.0, 0.0); }
-    else         { c = vec3(1.0, 1.0 - (s - 0.5) / 0.5, 0.0); }
-    // Round point sprites for a cleaner look.
     vec2 d = gl_PointCoord - vec2(0.5);
-    if (dot(d, d) > 0.25) discard;
-    fragColor = vec4(c, 1.0);
+    if (dot(d, d) > 0.25) discard; // round sprites
+    fragColor = vec4(vColor, 1.0);
 }
 )";
 } // namespace
@@ -49,18 +44,30 @@ void GLRenderer::init() {
   m_ready = true;
 }
 
-void GLRenderer::upload(const PointCloud &pc) {
+void GLRenderer::upload(const PointCloud &pc) { upload(pc, ColorMode::Defect); }
+
+void GLRenderer::upload(const PointCloud &pc, ColorMode mode) {
   m_count = pc.size();
   m_bounds = compute_bounds(pc);
 
-  // Interleave xyz+defect.
+  const bool byClass =
+      (mode == ColorMode::Class) && (pc.label.size() == m_count);
+
   std::vector<float> interleaved;
-  interleaved.reserve(m_count * 4);
+  interleaved.reserve(m_count * 6);
   for (std::size_t i = 0; i < m_count; ++i) {
     interleaved.push_back(pc.xyz[3 * i]);
     interleaved.push_back(pc.xyz[3 * i + 1]);
     interleaved.push_back(pc.xyz[3 * i + 2]);
-    interleaved.push_back(pc.defect[i]);
+    float r, g, b;
+    if (byClass) {
+      class_color(static_cast<SemClass>(pc.label[i]), r, g, b);
+    } else {
+      defect_color(pc.defect[i], r, g, b);
+    }
+    interleaved.push_back(r);
+    interleaved.push_back(g);
+    interleaved.push_back(b);
   }
 
   m_vao.bind();
@@ -71,7 +78,7 @@ void GLRenderer::upload(const PointCloud &pc) {
   m_prog.enableAttributeArray(0);
   m_prog.setAttributeBuffer(0, GL_FLOAT, 0, 3, kStride);
   m_prog.enableAttributeArray(1);
-  m_prog.setAttributeBuffer(1, GL_FLOAT, 3 * sizeof(float), 1, kStride);
+  m_prog.setAttributeBuffer(1, GL_FLOAT, 3 * sizeof(float), 3, kStride);
   m_prog.release();
   m_vbo->release();
   m_vao.release();

@@ -1,6 +1,7 @@
 // Pure-logic tests: bounds, defect colour mapping, PLY round-trip, and that the
 // synthetic scan actually produces defect points (so the demo isn't empty).
 #include <QtTest>
+#include <array>
 
 #include "point_cloud.h"
 
@@ -13,6 +14,9 @@ private slots:
   void defect_color_ramp();
   void ply_round_trip();
   void road_scan_has_defects();
+  void class_colors_are_distinct();
+  void class_histogram_counts();
+  void city_scene_has_all_classes();
 };
 
 void TestPointCloud::bounds_center_and_radius() {
@@ -62,6 +66,40 @@ void TestPointCloud::road_scan_has_defects() {
       ++defectPoints;
   QVERIFY2(defectPoints > 50,
            "synthetic scan should contain clear defect points");
+}
+
+void TestPointCloud::class_colors_are_distinct() {
+  std::vector<std::array<float, 3>> seen;
+  for (int i = 1; i < int(SemClass::Count); ++i) {
+    float r, g, b;
+    class_color(static_cast<SemClass>(i), r, g, b);
+    for (auto &c : seen)
+      QVERIFY2(!(qFuzzyCompare(c[0], r) && qFuzzyCompare(c[1], g) &&
+                 qFuzzyCompare(c[2], b)),
+               "two classes share a colour");
+    seen.push_back({r, g, b});
+  }
+}
+
+void TestPointCloud::class_histogram_counts() {
+  PointCloud pc;
+  pc.push(0, 0, 0, 0, SemClass::Car);
+  pc.push(1, 0, 0, 0, SemClass::Car);
+  pc.push(2, 0, 0, 0, SemClass::Building);
+  const auto h = class_histogram(pc);
+  QCOMPARE(h[std::size_t(SemClass::Car)], std::size_t(2));
+  QCOMPARE(h[std::size_t(SemClass::Building)], std::size_t(1));
+  QCOMPARE(h[std::size_t(SemClass::Vegetation)], std::size_t(0));
+}
+
+void TestPointCloud::city_scene_has_all_classes() {
+  const PointCloud pc = generate_city_scene(40, 16, 3);
+  QVERIFY(pc.size() > 10000);
+  QCOMPARE(pc.label.size(), pc.size());
+  const auto h = class_histogram(pc);
+  for (auto c : {SemClass::Ground, SemClass::Sidewalk, SemClass::Building,
+                 SemClass::Vegetation, SemClass::Car, SemClass::Pole})
+    QVERIFY2(h[std::size_t(c)] > 0, sem_class_name(c));
 }
 
 QTEST_GUILESS_MAIN(TestPointCloud)

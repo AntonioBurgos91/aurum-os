@@ -16,8 +16,11 @@ namespace aurum::pcv {
 // render(). Keeps the whole cloud in one interleaved VBO so draw is one call.
 class GLRenderer : protected QOpenGLFunctions {
 public:
+  enum class ColorMode { Defect, Class };
+
   void init();                       // compile shaders, create VAO/VBO
-  void upload(const PointCloud &pc); // push geometry+defect to the GPU
+  void upload(const PointCloud &pc); // push geometry, colour by defect
+  void upload(const PointCloud &pc, ColorMode mode); // colour by defect|class
   void render(const QMatrix4x4 &mvp, int viewportW, int viewportH,
               float pointSize = 2.0f);
 

@@ -11,6 +11,8 @@
 #include <QFile>
 #include <QObject>
 #include <QProcess>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QRegularExpression>
@@ -383,15 +385,15 @@ signals:
 private:
     void parseCheck(const QString& jsonText) {
         // Expected: {"installed":"X","latest":"Y","update_available":true|false}
-        static const QRegularExpression reInst("\"installed\"\s*:\s*\"([^\"]*)\"");
-        static const QRegularExpression reLat("\"latest\"\s*:\s*\"([^\"]*)\"");
-        static const QRegularExpression reAvail("\"update_available\"\s*:\s*(true|false)");
-        const auto mi = reInst.match(jsonText);
-        const auto ml = reLat.match(jsonText);
-        const auto ma = reAvail.match(jsonText);
-        if (mi.hasMatch()) m_installed = mi.captured(1);
-        if (ml.hasMatch()) m_latest = ml.captured(1);
-        m_available = ma.hasMatch() && ma.captured(1) == "true";
+        // Proper JSON parsing (was regex): tolerant of key order/whitespace and
+        // future fields. Malformed input leaves previous state untouched — the
+        // applet simply doesn't light up.
+        const QJsonDocument doc = QJsonDocument::fromJson(jsonText.toUtf8());
+        if (!doc.isObject()) return;
+        const QJsonObject o = doc.object();
+        m_installed = o.value("installed").toString(m_installed);
+        m_latest = o.value("latest").toString(m_latest);
+        m_available = o.value("update_available").toBool(false);
     }
 
     bool m_available = false;

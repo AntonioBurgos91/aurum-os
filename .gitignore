@@ -1,35 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
 # Build artifacts
-/build/
-/target/
-**/build/
-**/target/
+build/
+build-*/
+target/
 *.o
 *.so
-*.dylib
-
-# Cargo
-**/Cargo.lock
-!Cargo.lock           # commit lock files (good practice for binaries)
-
-# Editor
-.vscode/
-.idea/
+# Editor/backup litter
+*.bak
 *.swp
-.DS_Store
-
-# Generated
-*.qmlc
-*.qmltypes
-moc_*.cpp
-
-# Runtime / preview
-*.log
-/distro/demo/cache/
-*.iso
-**/SHA256SUMS
-
-# Secrets (defense in depth — there shouldn't be any but just in case)
-*.pem
-*.key
-*.env.local
-# Actualización de filtros
+*~
+# Local tooling caches
+.cache/

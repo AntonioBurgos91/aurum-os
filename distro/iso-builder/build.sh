@@ -744,6 +744,80 @@ EOF
 }
 
 # Step 7: Repackage SquashFS
+
+# ------------------------------------------------------------------------------
+# verify_chroot — post-build completeness gate.
+# build.sh tolerates missing optional assets during staging (many `|| true`),
+# which is right for flexibility but historically produced "successful" ISOs
+# with missing launchers/icons (the aider/claude-code bug). This gate re-checks
+# the CRITICAL artifact set inside the finished chroot and HARD-FAILS the build
+# if any is absent, so an incomplete ISO can never ship silently.
+verify_chroot() {
+    log_info "Verifying chroot completeness (critical artifact manifest)..."
+    local missing=0
+
+    local critical_bins=(
+        /usr/local/bin/aurum-finder
+        /usr/local/bin/aurum-dock
+        /usr/local/bin/aurum-menubar
+        /usr/local/bin/aurum-settings
+        /usr/local/bin/aurum-pointcloud-viewer
+        /usr/local/bin/pcv-render-offscreen
+        /usr/local/bin/aurum-update
+        /usr/local/bin/aurum-cv-train
+        /usr/local/libexec/aurum-update-apply
+    )
+    for b in "${critical_bins[@]}"; do
+        if [ ! -x "${CHROOT_DIR}${b}" ]; then
+            log_error "MISSING critical binary: ${b}"
+            missing=$((missing + 1))
+        fi
+    done
+
+    # Every staged .desktop must exist in the image, and its Exec target must
+    # resolve inside the chroot (this is exactly the class of bug that shipped
+    # broken aider/claude-code launchers).
+    local d exec_bin
+    for d in "${BASE_DIR}"/distro/applications/*.desktop; do
+        local name; name="$(basename "${d}")"
+        if [ ! -f "${CHROOT_DIR}/usr/share/applications/${name}" ]; then
+            log_error "MISSING .desktop in image: ${name}"
+            missing=$((missing + 1))
+            continue
+        fi
+        exec_bin="$(grep -m1 '^TryExec=' "${d}" | cut -d= -f2 || true)"
+        [ -z "${exec_bin}" ] && exec_bin="$(grep -m1 '^Exec=' "${d}" | cut -d= -f2 | awk '{print $1}')"
+        if [ -n "${exec_bin}" ] && ! chroot "${CHROOT_DIR}" sh -c "command -v '${exec_bin}'" >/dev/null 2>&1; then
+            log_error ".desktop ${name}: Exec target '${exec_bin}' not found in image"
+            missing=$((missing + 1))
+        fi
+    done
+
+    # Version marker + icons.
+    if [ ! -s "${CHROOT_DIR}/etc/aurum/version" ]; then
+        log_error "MISSING /etc/aurum/version (updater cannot compare versions)"
+        missing=$((missing + 1))
+    fi
+    local icon_count
+    icon_count="$(find "${CHROOT_DIR}/usr/local/share/icons/hicolor/256x256/apps" -name '*.png' 2>/dev/null | wc -l)"
+    if [ "${icon_count}" -lt 20 ]; then
+        log_error "App icons in image: ${icon_count} (<20) — icon staging failed"
+        missing=$((missing + 1))
+    fi
+
+    # Updater keyring: WARN (not fail) until distro/keys ships the pubkey; the
+    # updater itself fail-closes at runtime.
+    if [ ! -f "${CHROOT_DIR}/usr/share/aurum-os/aurum-release-keyring.gpg" ]; then
+        log_warn "No updater release keyring in image — updates will refuse to apply (see distro/keys/README.md)"
+    fi
+
+    if [ "${missing}" -gt 0 ]; then
+        log_error "verify_chroot: ${missing} critical artifact(s) missing — refusing to build an incomplete ISO"
+        exit 1
+    fi
+    log_info "verify_chroot: all critical artifacts present ✓"
+}
+
 rebuild_squashfs() {
     # In the ubuntu path the kernel/initrd were installed *inside* the chroot by
     # bootstrap_ubuntu; lift them into casper/ before squashing (and exclude
@@ -829,6 +903,7 @@ main() {
 
     mount_chroot
     customize_system
+    verify_chroot
     unmount_chroot
 
     rebuild_squashfs

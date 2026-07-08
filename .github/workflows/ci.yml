@@ -23,6 +23,14 @@ jobs:
           find . -name "*.sh" -not -path "./build/*" -not -path "./target/*" | \
             xargs shellcheck -S warning
 
+  test-shell:
+    name: Shell unit tests (updater)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run updater unit tests
+        run: bash tests/shell/test_aurum_update.sh
+
   lint-cpp:
     runs-on: ubuntu-24.04
     steps:

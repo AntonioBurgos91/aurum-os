@@ -128,12 +128,18 @@ cmd_apply() {
     if [ -n "$sig_url" ]; then
         curl -fsSL "$sig_url" -o "${CACHE_DIR}/SHA256SUMS.asc" || die "failed to download signature"
         if command -v gpg >/dev/null 2>&1; then
-            log "verifying GPG signature..."
-            gpg --verify "${CACHE_DIR}/SHA256SUMS.asc" "${CACHE_DIR}/SHA256SUMS" \
+            # Verify against the DEDICATED release keyring shipped by the OS —
+            # never the caller's default keyring (empty or attacker-populated
+            # default keyrings must not satisfy release verification).
+            local keyring="${AURUM_GPG_KEYRING:-/usr/share/aurum-os/aurum-release-keyring.gpg}"
+            [ -r "$keyring" ] || die "release keyring missing (${keyring}); cannot verify update — refusing"
+            log "verifying GPG signature (keyring: ${keyring})..."
+            gpg --no-default-keyring --keyring "$keyring" \
+                --verify "${CACHE_DIR}/SHA256SUMS.asc" "${CACHE_DIR}/SHA256SUMS" \
                 || die "GPG signature verification FAILED - refusing to apply"
             log "signature OK"
         else
-            warn "gpg not available; cannot verify signature"
+            die "gpg not available; cannot verify signature — refusing to apply"
         fi
     else
         warn "release has no .asc signature; integrity limited to SHA-256"

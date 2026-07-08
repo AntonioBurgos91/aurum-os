@@ -367,6 +367,14 @@ customize_system() {
     install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/app-icons"
     cp "${BASE_DIR}"/distro/assets/icons/*.png \
        "${CHROOT_DIR}/tmp/aurum/app-icons/" 2>/dev/null || true
+    # Release-signing PUBLIC key → dedicated updater keyring (see distro/keys/).
+    if [ -f "${BASE_DIR}/distro/keys/aurum-release-pubkey.asc" ]; then
+        install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/keys"
+        cp "${BASE_DIR}/distro/keys/aurum-release-pubkey.asc" \
+           "${CHROOT_DIR}/tmp/aurum/keys/"
+    else
+        log_warn "distro/keys/aurum-release-pubkey.asc missing — ISO will ship WITHOUT the updater keyring (updates will fail-closed)"
+    fi
 
     # Stage system-wide .desktop entries for the menu / dock / spotlight.
     log_info "Staging system-wide application entries..."
@@ -614,6 +622,16 @@ if [ -f /tmp/aurum/polkit/org.aurumos.update.policy ]; then
     install -d -m 0755 /usr/share/polkit-1/actions
     install -m 0644 /tmp/aurum/polkit/org.aurumos.update.policy \
         /usr/share/polkit-1/actions/org.aurumos.update.policy
+fi
+
+# --- Updater release keyring --------------------------------------------------
+# Dearmor the release public key into a DEDICATED keyring. aurum-update(-apply)
+# verify against THIS file only (never the user/root default keyring).
+if [ -f /tmp/aurum/keys/aurum-release-pubkey.asc ]; then
+    install -d -m 0755 /usr/share/aurum-os
+    gpg --dearmor -o /usr/share/aurum-os/aurum-release-keyring.gpg \
+        /tmp/aurum/keys/aurum-release-pubkey.asc
+    chmod 0644 /usr/share/aurum-os/aurum-release-keyring.gpg
 fi
 
 # --- CV training pipeline (point-cloud segmentation) -------------------------

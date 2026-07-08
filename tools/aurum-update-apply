@@ -44,8 +44,14 @@ die()  { echo -e "\e[31m[aurum-update-apply]\e[0m $*" >&2; exit 1; }
 # 1. RE-VERIFY the signature as root. We do not trust the caller's check.
 if [ -f "${CACHE_DIR}/SHA256SUMS.asc" ]; then
     command -v gpg >/dev/null 2>&1 || die "gpg required to verify the update"
-    log "re-verifying release signature as root..."
-    gpg --verify "${CACHE_DIR}/SHA256SUMS.asc" "${CACHE_DIR}/SHA256SUMS" \
+    # Root re-verification against the DEDICATED release keyring only. The
+    # default root keyring is not consulted: an empty/attacker-populated
+    # default keyring must never satisfy release verification.
+    KEYRING="${AURUM_GPG_KEYRING:-/usr/share/aurum-os/aurum-release-keyring.gpg}"
+    [ -r "${KEYRING}" ] || die "release keyring missing (${KEYRING}); refusing to apply"
+    log "re-verifying release signature as root (keyring: ${KEYRING})..."
+    gpg --no-default-keyring --keyring "${KEYRING}" \
+        --verify "${CACHE_DIR}/SHA256SUMS.asc" "${CACHE_DIR}/SHA256SUMS" \
         || die "signature verification FAILED — aborting (possible tampering)"
     log "signature OK"
 else

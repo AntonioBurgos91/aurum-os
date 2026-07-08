@@ -119,12 +119,20 @@ jobs:
           echo "AURUM_GPG_KEY_ID=${KEY_ID}" >> "${GITHUB_ENV}"
           echo "Imported GPG key: ${KEY_ID}"
 
-      - name: Sign ISO
+      - name: Sign ISO + checksum manifest, export public key
         if: ${{ env.AURUM_GPG_SKIP != '1' }}
         env:
           AURUM_GPG_PASSPHRASE: ${{ secrets.AURUM_GPG_PASSPHRASE }}
         run: |
           bash .github/release-iso/sign.sh "build/${{ steps.version.outputs.iso_name }}"
+          # The updater verifies SHA256SUMS.asc (per-artifact hashes), not the
+          # ISO signature — sign the manifest too or `aurum-update apply`
+          # fail-closes on every release.
+          bash .github/release-iso/sign.sh "build/SHA256SUMS"
+          # Publish the public key as an asset so users can cross-check the one
+          # shipped in the OS (distro/keys/aurum-release-pubkey.asc).
+          gpg --armor --export "${AURUM_GPG_KEY_ID}" > build/aurum-release-pubkey.asc
+          test -s build/aurum-release-pubkey.asc
 
       - name: Generate release notes
         id: notes
@@ -178,6 +186,12 @@ jobs:
           ASSETS=("${ISO}" "${ISO}.sha256" "build/SHA256SUMS")
           if [ -f "${ISO}.asc" ]; then
             ASSETS+=("${ISO}.asc")
+          fi
+          if [ -f "build/SHA256SUMS.asc" ]; then
+            ASSETS+=("build/SHA256SUMS.asc")
+          fi
+          if [ -f "build/aurum-release-pubkey.asc" ]; then
+            ASSETS+=("build/aurum-release-pubkey.asc")
           fi
           printf '%s\n' "${ASSETS[@]}"
           {

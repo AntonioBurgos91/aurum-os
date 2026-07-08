@@ -15,6 +15,9 @@ ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
 NoNewPrivileges=true
+# Resource caps: a polling client needs almost nothing.
+MemoryMax=256M
+CPUQuota=10%
 
 [Install]
 WantedBy=graphical-session.target

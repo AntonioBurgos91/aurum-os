@@ -43,11 +43,16 @@ class PointMLP(nn.Module):
         return self.net(x)
 
 
-def build_split(seeds, hard=False):
+def build_split(seeds, hard=False, smoke=False):
     """Features + labels from realistic LiDAR scans of the given scenes."""
     Xs, ys = [], []
     for s in seeds:
-        P, L = ds.generate_scanned_scene(seed=s, hard=hard)
+        if smoke:
+            # Tiny world for CI: same physics, fraction of the points.
+            P, L = ds.generate_city_scene(length_m=18, width_m=12, seed=s)
+            P, L = ds.simulate_lidar_scan(P, L, length_m=18, seed=s)
+        else:
+            P, L = ds.generate_scanned_scene(seed=s, hard=hard)
         F = ds.extract_features(P)
         Xs.append(F); ys.append(L)
     return np.vstack(Xs), np.concatenate(ys), P, L
@@ -75,12 +80,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--out", default="/tmp/aurum/cvmodel")
+    ap.add_argument("--smoke", action="store_true",
+                    help="tiny scenes + 1 train seed (CI smoke; <60s CPU)")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     torch.manual_seed(0); np.random.seed(0)
 
-    print("[cv-train] scanning training scenes (LiDAR sim, seeds 1-4)...", flush=True)
-    Xtr, ytr, _, _ = build_split([1, 2, 3, 4])
+    train_seeds = [1] if args.smoke else [1, 2, 3, 4]
+    print(f"[cv-train] scanning training scenes (LiDAR sim, seeds {train_seeds})...", flush=True)
+    Xtr, ytr, _, _ = build_split(train_seeds, smoke=args.smoke)
     # Real annotated data has label noise; flip ~3% of training labels to a
     # random class to simulate imperfect human annotation.
     rng_ln = np.random.default_rng(123)
@@ -88,7 +96,7 @@ def main():
     ytr = ytr.copy()
     ytr[flip] = rng_ln.choice(ds.CLASSES, size=int(flip.sum()))
     print("[cv-train] scanning HELD-OUT test scene (seed 99, different layout)...", flush=True)
-    Xte, yte, Pte, Lte = build_split([99], hard=True)
+    Xte, yte, Pte, Lte = build_split([99], hard=not args.smoke, smoke=args.smoke)
 
     # Standardise features on train stats.
     mu, sd = Xtr.mean(0), Xtr.std(0) + 1e-6

@@ -46,9 +46,24 @@ ensure_uv() {
         log "uv already on PATH ($(command -v uv))"
         return 0
     fi
-    log "installing uv..."
-    # Install for root; the binary lands in /root/.local/bin/uv.
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    log "installing uv (pinned)..."
+    # Supply-chain hardening: pin the installer to a specific uv release and
+    # verify the script's SHA-256 before executing. `curl | sh` of a moving
+    # target would let a compromised CDN run arbitrary root code in the image.
+    # To bump: update UV_VERSION and UV_INSTALLER_SHA256 together
+    # (sha256sum of https://github.com/astral-sh/uv/releases/download/<ver>/uv-installer.sh).
+    local UV_VERSION="${AURUM_UV_VERSION:-0.9.28}"
+    local UV_INSTALLER_SHA256="${AURUM_UV_INSTALLER_SHA256:-2206437df06d0fff515d0e95193cfc2f4c2719d4c82f569d70057bbf5c4caba7}"
+    local inst=/tmp/uv-installer.sh
+    curl -LsSf "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-installer.sh" -o "${inst}"
+    if [[ -n "${UV_INSTALLER_SHA256}" ]]; then
+        echo "${UV_INSTALLER_SHA256}  ${inst}" | sha256sum -c - \
+            || die "uv installer checksum mismatch — refusing to execute"
+    else
+        warn "AURUM_UV_INSTALLER_SHA256 not set; installing pinned uv ${UV_VERSION} without checksum verification"
+    fi
+    sh "${inst}"
+    rm -f "${inst}"
     # Symlink system-wide so EVERY user (and aurum-settings's venv manager)
     # finds uv without sourcing /root/.local/bin into their PATH.
     if [[ -x /root/.local/bin/uv ]]; then

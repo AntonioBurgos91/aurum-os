@@ -47,6 +47,20 @@ jobs:
       - name: Run trainer smoke test
         run: python3 apps/pointcloud-viewer/training/test_smoke.py
 
+  test-pcv-convert:
+    name: LAS/E57 converter smoke (Python)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install deps
+        run: pip install laspy lazrs numpy
+      - name: Run converter smoke test
+        run: python3 apps/pointcloud-viewer/tools/test_smoke.py
+
   lint-cpp:
     runs-on: ubuntu-24.04
     steps:

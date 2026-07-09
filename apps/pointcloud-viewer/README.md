@@ -57,3 +57,35 @@ PTv3) and the synthetic scenes for real labelled scans when those exist.
 PROTOTYPE. Verified: compiles, 4 unit tests pass, renders 360k synthetic points
 headless. NOT yet done: ingest of real scanner formats (LAS/E57), GPU-accelerated
 defect detection, tiling for city-scale clouds. See the architecture note.
+
+## Loading real scanner data (LAS/LAZ/E57)
+
+The viewer's native loader reads PLY only. Real scanners output LAS/LAZ
+(ASPRS) or E57 (ASTM) — rather than write a second binary-format parser in
+C++, `aurum-pcv-convert` bridges via the mature Python readers (laspy, pye57)
+and emits the same PLY the viewer already consumes:
+
+    aurum-pcv-convert scan.las -o scan.ply && aurum-pointcloud-viewer scan.ply
+    aurum-pcv-convert scan.las --info   # point count + class histogram, no conversion
+
+Classification mapping (LAS ASPRS codes -> AurumOS SemClass) is intentionally
+partial and honest: codes without a clear match (rail, wire, noise, reserved,
+etc.) become **Unlabeled**, never guessed into the nearest class — a wrong
+label is worse than no label for a defect-inspection tool. An unclassified
+scan (the common case for raw mobile-mapping output) converts as
+geometry-only, same as any other unlabeled cloud.
+
+E57 has no standard per-point semantic class at all; E57 input is always
+geometry-only unless a vendor extra field is added later.
+
+Verified: a real binary LAS 1.4 file (laspy-written, ASPRS classification
+codes 2/5/6 + an unmapped code) converts correctly — mapped codes land in the
+right SemClass, the unmapped code lands in Unlabeled — and the real
+`load_ply()` from point_cloud.cpp (compiled standalone, unmodified) reads the
+resulting PLY back with matching per-class counts. 5 smoke tests
+(`apps/pointcloud-viewer/tools/test_smoke.py`) run in CI.
+
+**Not yet done**: LAZ requires the `lazrs` backend (shipped in the OS
+requirements); E57 conversion exercised only against pye57's API, not a real
+vendor E57 file (none available to test against) — treat E57 support as
+less proven than LAS until validated against a real file.

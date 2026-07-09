@@ -362,6 +362,12 @@ customize_system() {
        "${CHROOT_DIR}/tmp/aurum/cv-training/" 2>/dev/null || true
     cp "${BASE_DIR}/apps/pointcloud-viewer/training/aurum-cv-train" \
        "${CHROOT_DIR}/tmp/aurum/cv-training/" 2>/dev/null || true
+    # LAS/LAZ/E57 -> PLY bridge for the point-cloud viewer (real scanner formats).
+    install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/pcv-convert"
+    cp "${BASE_DIR}/apps/pointcloud-viewer/tools/las_e57_to_ply.py" \
+       "${CHROOT_DIR}/tmp/aurum/pcv-convert/" 2>/dev/null || true
+    cp "${BASE_DIR}/apps/pointcloud-viewer/tools/aurum-pcv-convert" \
+       "${CHROOT_DIR}/tmp/aurum/pcv-convert/" 2>/dev/null || true
     # App icons (256x256) for the menu/dock. Staged here and installed into the
     # hicolor theme by chroot_setup so QIcon::fromTheme(<id>) resolves them.
     install -d -m 0755 "${CHROOT_DIR}/tmp/aurum/app-icons"
@@ -645,6 +651,15 @@ if [ -d /tmp/aurum/cv-training ]; then
     fi
 fi
 
+# LAS/LAZ/E57 -> PLY bridge (real scanner formats -> the viewer's PLY loader).
+if [ -d /tmp/aurum/pcv-convert ]; then
+    install -d -m 0755 /usr/local/share/aurum-os/pcv-convert
+    install -m 0644 /tmp/aurum/pcv-convert/las_e57_to_ply.py /usr/local/share/aurum-os/pcv-convert/ 2>/dev/null || true
+    if [ -f /tmp/aurum/pcv-convert/aurum-pcv-convert ]; then
+        install -m 0755 /tmp/aurum/pcv-convert/aurum-pcv-convert /usr/local/bin/aurum-pcv-convert
+    fi
+fi
+
 # --- App icons → hicolor theme (so QIcon::fromTheme(<id>) resolves them) ------
 # Fixes icon resolution for every distro/applications/*.desktop entry.
 if [ -d /tmp/aurum/app-icons ]; then
@@ -765,6 +780,7 @@ verify_chroot() {
         /usr/local/bin/pcv-render-offscreen
         /usr/local/bin/aurum-update
         /usr/local/bin/aurum-cv-train
+        /usr/local/bin/aurum-pcv-convert
         /usr/local/libexec/aurum-update-apply
     )
     for b in "${critical_bins[@]}"; do

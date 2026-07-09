@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# aurum-pcv-convert — thin launcher for las_e57_to_ply.py, installed to PATH.
+set -euo pipefail
+HERE="/usr/local/share/aurum-os/pcv-convert"
+[ -d "$HERE" ] || HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "$HERE/las_e57_to_ply.py" "$@"

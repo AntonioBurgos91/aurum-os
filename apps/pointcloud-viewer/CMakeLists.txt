@@ -8,7 +8,7 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 COMPONENTS Core Gui OpenGL OpenGLWidgets Widgets REQUIRED)
 
 # Shared core: point cloud + GL renderer.
-add_library(pcv-core STATIC src/point_cloud.cpp src/gl_renderer.cpp)
+add_library(pcv-core STATIC src/point_cloud.cpp src/gl_renderer.cpp src/las_reader.cpp)
 target_link_libraries(pcv-core PUBLIC Qt6::Core Qt6::Gui Qt6::OpenGL)
 target_include_directories(pcv-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 

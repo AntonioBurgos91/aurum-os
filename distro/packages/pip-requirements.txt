@@ -52,3 +52,8 @@ kaggle
 
 # --- GPU telemetry (also consumed by aurum-gpu-monitor via D-Bus) ---
 nvidia-ml-py
+
+# --- Point-cloud format bridges (LAS/LAZ/E57 -> PLY for the pcv viewer) ---
+laspy>=2.5
+lazrs>=0.6          # LAZ (compressed LAS) decode backend for laspy
+pye57>=0.4

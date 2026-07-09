@@ -769,7 +769,7 @@ EOF
 # if any is absent, so an incomplete ISO can never ship silently.
 verify_chroot() {
     log_info "Verifying chroot completeness (critical artifact manifest)..."
-    local missing=0
+    local missing_count=0
 
     local critical_bins=(
         /usr/local/bin/aurum-finder
@@ -786,7 +786,7 @@ verify_chroot() {
     for b in "${critical_bins[@]}"; do
         if [ ! -x "${CHROOT_DIR}${b}" ]; then
             log_error "MISSING critical binary: ${b}"
-            missing=$((missing + 1))
+            missing_count=$((missing_count + 1))
         fi
     done
 
@@ -798,27 +798,27 @@ verify_chroot() {
         local name; name="$(basename "${d}")"
         if [ ! -f "${CHROOT_DIR}/usr/share/applications/${name}" ]; then
             log_error "MISSING .desktop in image: ${name}"
-            missing=$((missing + 1))
+            missing_count=$((missing_count + 1))
             continue
         fi
         exec_bin="$(grep -m1 '^TryExec=' "${d}" | cut -d= -f2 || true)"
         [ -z "${exec_bin}" ] && exec_bin="$(grep -m1 '^Exec=' "${d}" | cut -d= -f2 | awk '{print $1}')"
         if [ -n "${exec_bin}" ] && ! chroot "${CHROOT_DIR}" sh -c "command -v '${exec_bin}'" >/dev/null 2>&1; then
             log_error ".desktop ${name}: Exec target '${exec_bin}' not found in image"
-            missing=$((missing + 1))
+            missing_count=$((missing_count + 1))
         fi
     done
 
     # Version marker + icons.
     if [ ! -s "${CHROOT_DIR}/etc/aurum/version" ]; then
         log_error "MISSING /etc/aurum/version (updater cannot compare versions)"
-        missing=$((missing + 1))
+        missing_count=$((missing_count + 1))
     fi
     local icon_count
     icon_count="$(find "${CHROOT_DIR}/usr/local/share/icons/hicolor/256x256/apps" -name '*.png' 2>/dev/null | wc -l)"
     if [ "${icon_count}" -lt 20 ]; then
         log_error "App icons in image: ${icon_count} (<20) — icon staging failed"
-        missing=$((missing + 1))
+        missing_count=$((missing_count + 1))
     fi
 
     # Updater keyring: WARN (not fail) until distro/keys ships the pubkey; the
@@ -827,8 +827,8 @@ verify_chroot() {
         log_warn "No updater release keyring in image — updates will refuse to apply (see distro/keys/README.md)"
     fi
 
-    if [ "${missing}" -gt 0 ]; then
-        log_error "verify_chroot: ${missing} critical artifact(s) missing — refusing to build an incomplete ISO"
+    if [ "${missing_count}" -gt 0 ]; then
+        log_error "verify_chroot: ${missing_count} critical artifact(s) missing — refusing to build an incomplete ISO"
         exit 1
     fi
     log_info "verify_chroot: all critical artifacts present ✓"

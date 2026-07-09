@@ -9,10 +9,10 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QFile>
-#include <QObject>
-#include <QProcess>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QObject>
+#include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QRegularExpression>
